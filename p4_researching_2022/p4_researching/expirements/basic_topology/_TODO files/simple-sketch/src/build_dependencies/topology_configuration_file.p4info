@@ -1,0 +1,143 @@
+pkg_info {
+  arch: "v1model"
+}
+tables {
+  preamble {
+    id: 48453359
+    name: "basic_tutorial_ingress.ipv4_forwarding.ipv4_lpm"
+    alias: "ipv4_lpm"
+  }
+  match_fields {
+    id: 1
+    name: "hdr.ipv4.dstAddr"
+    bitwidth: 32
+    match_type: LPM
+  }
+  action_refs {
+    id: 27510294
+  }
+  action_refs {
+    id: 18759588
+  }
+  action_refs {
+    id: 21257015
+  }
+  size: 1024
+}
+actions {
+  preamble {
+    id: 18759588
+    name: "drop"
+    alias: "drop"
+  }
+}
+actions {
+  preamble {
+    id: 21257015
+    name: "NoAction"
+    alias: "NoAction"
+    annotations: "@noWarn(\"unused\")"
+  }
+}
+actions {
+  preamble {
+    id: 27510294
+    name: "basic_tutorial_ingress.ipv4_forwarding.ipv4_forward"
+    alias: "ipv4_forward"
+  }
+  params {
+    id: 1
+    name: "dstAddr"
+    bitwidth: 48
+  }
+  params {
+    id: 2
+    name: "port"
+    bitwidth: 9
+  }
+}
+actions {
+  preamble {
+    id: 31344331
+    name: "basic_tutorial_ingress.traffic_sketch.sketching"
+    alias: "sketching"
+  }
+}
+controller_packet_metadata {
+  preamble {
+    id: 81826293
+    name: "packet_in"
+    alias: "packet_in"
+    annotations: "@controller_header(\"packet_in\")"
+  }
+  metadata {
+    id: 1
+    name: "ingress_port"
+    bitwidth: 16
+  }
+}
+controller_packet_metadata {
+  preamble {
+    id: 76689799
+    name: "packet_out"
+    alias: "packet_out"
+    annotations: "@controller_header(\"packet_out\")"
+  }
+  metadata {
+    id: 1
+    name: "egress_port"
+    bitwidth: 16
+  }
+  metadata {
+    id: 2
+    name: "mcast_grp"
+    bitwidth: 16
+  }
+}
+registers {
+  preamble {
+    id: 383914691
+    name: "basic_tutorial_ingress.traffic_sketch.FlowCount"
+    alias: "FlowCount"
+  }
+  type_spec {
+    bitstring {
+      bit {
+        bitwidth: 32
+      }
+    }
+  }
+  size: 512
+}
+registers {
+  preamble {
+    id: 375485913
+    name: "basic_tutorial_ingress.traffic_sketch.LastSeen"
+    alias: "LastSeen"
+  }
+  type_spec {
+    bitstring {
+      bit {
+        bitwidth: 48
+      }
+    }
+  }
+  size: 512
+}
+registers {
+  preamble {
+    id: 376028326
+    name: "basic_tutorial_ingress.traffic_sketch.DeltaTime"
+    alias: "DeltaTime"
+  }
+  type_spec {
+    bitstring {
+      bit {
+        bitwidth: 48
+      }
+    }
+  }
+  size: 512
+}
+type_info {
+}
