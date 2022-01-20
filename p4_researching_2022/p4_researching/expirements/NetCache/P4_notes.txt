@@ -1,0 +1,220 @@
+
+#define CPU_OUT_PORT 255
+**************************************must be in header*************************************************
+// packet in
+@controller_header("packet_in")
+header packet_in_header_t {
+    bit<16>  ingress_port;
+}
+
+// packet out
+@controller_header("packet_out")
+header packet_out_header_t {
+    bit<16> egress_port;
+    bit<16> mcast_grp;
+}
+
+header ethernet_t {
+    bit<48>      dstAddr;
+    bit<48>      srcAddr;
+    bit<16>      etherType;
+   }
+ header ipv4_t {
+    bit<4>    version;
+    bit<4>    ihl;
+    bit<8>    diffserv;
+    bit<16>   totalLen;
+    bit<16>   identification;
+    bit<3>    flags;
+    bit<13>   fragOffset;
+    bit<8>    ttl;
+    bit<8>    protocol;
+    bit<16>   hdrChecksum;
+    bit<32>   srcAddr;
+    bit<32>   dstAddr;
+}
+
+because we need to deal with mac address we need to add ARP protocol and parse it
+
+// ARP IP protocol 
+header arp_t {
+    bit<16>  htype;      // HW type
+    bit<16>  ptype;      // Protocol type
+    bit<8>   hlen;       // HW addr len
+    bit<8>   plen;       // Proto addr len
+    bit<16>  oper;       // Operation
+    bit<48>  srcMacAddr; // source mac addr
+    bit<32>  srcIPAddr;  // source IP addr
+    bit<48>  dstMacAddr; // destination mac addr
+    bit<32>  dstIPAddr;  // destination IP addr
+}
+
+
+struct headers{
+//all the headers together
+}
+
+************************all that must be in parser*****************************************
+
+parser ThisParser(packet_in packet,
+                out headers hdr,
+                inout metadata meta,
+                inout standard_metadata_t standard_metadata) {
+
+state start {
+        transition select(standard_metadata.ingress_port){
+            CPU_OUT_PORT: parse_packet_out;
+            default: parse_ethernet;
+        }
+    }
+    state parse_ethernet {
+        packet.extract(hdr.ethernet);
+        transition select(hdr.ethernet.etherType) {
+            TYPE_IPV4: parse_ipv4;
+            default: parse_ipv4;
+        }
+    }
+    state parse_packet_out {
+        packet.extract(hdr.packet_out);
+        transition parse_ethernet;
+    }
+
+    state parse_arp {
+        packet.extract(hdr.arp);
+        transition accept;
+    }
+*****************************the deparser-all we get out of parse**********************************
+control ThisDeparser(packet_out packet, in headers hdr) {
+    apply {
+        packet.emit(hdr.packet_in);
+        packet.emit(hdr.ethernet);
+        packet.emit(hdr.ipv4);
+        packet.emit(hdr.dht);
+        packet.emit(hdr.arp);
+    }
+}
+*************************************the ingress*************************************************
+//in this part we need to have actions-the functions,tables-the "routing" table of the switches,apply-what to do
+//in lily code, she had only 2 tables inside of one control. in gilad ther is 4 control.
+//we can have many controls, but it need to be only one ingress control. in this control we can call others.
+
+control ThisIngress(inout headers hdr,
+                  inout metadata meta,
+                  inout standard_metadata_t standard_metadata) {
+
+//call other controllers.
+vxlan_ingress_downstream()  downstream1;
+vxlan_ingress_downstream()  downstream2;
+
+    action drop() {
+        mark_to_drop(standard_metadata);
+    }
+
+//standart table for ipv4 packets-dummy table
+
+    action ipv4_forward(bit<48>  dstAddr, bit<9> port) {
+        hdr.ethernet.srcAddr = hdr.ethernet.dstAddr;
+        hdr.ethernet.dstAddr = dstAddr;
+        standard_metadata.egress_spec = port;
+    }
+
+    table ipv4_lpm {
+        key = {
+            hdr.ipv4.dstAddr: lpm;
+        }
+        actions = {
+            ipv4_forward;
+            drop;
+            NoAction;
+        }
+        size = 1024;
+        default_action = drop();
+    }
+
+//regulre apply, to check if one of the values is valid and then move it to the relavent table and action.
+
+    apply {
+        if (hdr.ipv4.isValid() && !hdr.myTunnel.isValid()) {
+            // Process only non-tunneled IPv4 packets.
+            ipv4_lpm.apply();
+        }
+
+        if (hdr.myTunnel.isValid()) {
+            // Process all tunneled packets.
+            myTunnel_exact.apply();
+        }
+    }
+************************************the egress*************************************************
+control ThisEgress(inout headers hdr,
+                inout metadata meta,
+                    inout standard_metadata_t standard_metadata) {
+	apply {		}
+}
+in this egress(lily) there in nothing, in gilad there is 
+//    vxlan_egress_downstream()  downstream;
+
+********************************the packerio***************************************************
+control packetio_ingress(inout headers hdr,
+                         inout standard_metadata_t standard_metadata) {
+    apply {
+        if (standard_metadata.ingress_port == CPU_OUT_PORT) {
+            standard_metadata.egress_spec = (bit<9>)hdr.packet_out.egress_port;
+            hdr.packet_out.setInvalid();
+            exit;
+        }
+    }
+}
+
+control packetio_egress(inout headers hdr,
+                        inout standard_metadata_t standard_metadata) {
+    apply {
+        if (standard_metadata.egress_port == CPU_OUT_PORT) {
+            hdr.packet_in.setValid();
+            hdr.packet_in.ingress_port = (bit<16>)standard_metadata.ingress_port;
+        }
+    }
+}
+*************************************the checksum***********************************************
+control ThisChecksumCompute(inout headers  hdr, inout metadata meta) {
+     apply {
+	update_checksum(
+	    hdr.ipv4.isValid(),
+            { hdr.ipv4.version,
+	      hdr.ipv4.ihl,
+              hdr.ipv4.diffserv,
+              hdr.ipv4.totalLen,
+              hdr.ipv4.identification,
+              hdr.ipv4.flags,
+              hdr.ipv4.fragOffset,
+              hdr.ipv4.ttl,
+              hdr.ipv4.protocol,
+              hdr.ipv4.srcAddr,
+              hdr.ipv4.dstAddr },
+            hdr.ipv4.hdrChecksum,
+            HashAlgorithm.csum16);
+    }
+}
+*****************************************switch arhitecture-all the fiels in the P4 file******************
+V1Switch(
+ThisParser(),
+ThisChecksum(),
+ThisIngress(),
+ThisEgress(),
+ThisChecksumCompute(),
+ThisDeparser()
+)main;
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
