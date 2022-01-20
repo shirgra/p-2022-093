@@ -3,6 +3,35 @@
 Communication Systems engineering - 4th year project.
 
 
+## Run our code:
+# initial settings
+
+# running the expiremint:
+1. In the project, `NetCache/` open a terminal, run:
+   ```bash
+   make
+   ``` 
+   This will:
+   * compile `basic_tunnel.p4`, and
+   * start a Mininet instance with three switches (`s1`, `s2`, `s3`) configured
+     in a triangle, each connected to one host (`h1`, `h2`, and `h3`).
+   * The hosts are assigned IPs of `10.0.1.1`, `10.0.2.2`, and `10.0.3.3`.
+2. In the Mininet terminal, run:
+   ```bash
+   pingall
+   ```
+   This will check that the besic routing is working.
+
+2. You should now see a Mininet command prompt. Open two terminals for `h1` and
+`h2`, respectively: 
+  ```bash
+  mininet> xterm h1 h2
+  ```
+
+
+> sine note
+
+
 ## The bases for creating the basic topology:
 ### The base topology: 
 Link for the topology: ![p4lang/tutorials/exercises/basic_tunnel/](https://github.com/p4lang/tutorials/tree/master/exercises/basic_tunnel)
@@ -15,6 +44,10 @@ A python file that open a scappy tunnel.
 5. receive.py, send.py
 6. sX-runtime.json (X=1,2,3)
 7. topology.json
+### The addition to connect with the data plaine 
+Link for the topology: p4lang/tutorials/exercises/p4runtime/ [https://github.com/p4lang/tutorials/tree/master/exercises/p4runtime].
+1. mycontroller.py -> control_plaine.py
+2. advanced_tunnel.p4 -> to be applied to basic_tunnel.p4
 
 
 ## The Topology structure:
@@ -47,22 +80,5 @@ basic_tunnel.p4                               -> topology_configuration_file.p4
 ![image](https://user-images.githubusercontent.com/62025130/140291037-6c740e58-2c86-44a2-963f-cf9afa6babf1.png)
 
 
-
-## Run our code:
-1. In your shell, run:
-   ```bash
-   make run
-   ``` 
-   This will:
-   * compile `basic_tunnel.p4`, and
-   * start a Mininet instance with three switches (`s1`, `s2`, `s3`) configured
-     in a triangle, each connected to one host (`h1`, `h2`, and `h3`).
-   * The hosts are assigned IPs of `10.0.1.1`, `10.0.2.2`, and `10.0.3.3`.
-
-2. You should now see a Mininet command prompt. Open two terminals for `h1` and
-`h2`, respectively: 
-  ```bash
-  mininet> xterm h1 h2
-  ```
 
 > Any changes in the P4 program that add or rename tables, keys, or actions will need to be reflected in these sX-runtime.json files.
