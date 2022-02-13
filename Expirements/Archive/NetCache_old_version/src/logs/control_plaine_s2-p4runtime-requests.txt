@@ -1,0 +1,9 @@
+
+[2022-02-08 10:15:16.922] /p4.v1.P4Runtime/Read
+---
+device_id: 1
+entities {
+  table_entry {
+  }
+}
+---
