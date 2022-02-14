@@ -18,9 +18,9 @@ Our proposed method includes creating a network with several switches which send
 3. Clone the repo to the vm that you’ve just downloaded.
 4. In the repository, `p-2022-093/` open a terminal, run:
 ```
-   cd Expirements
-   chmod 777 pip_install.sh
-   ./pip_install.sh
+   $ cd Expirements
+   $ chmod 777 pip_install.sh
+   $ ./pip_install.sh
 ``` 
 5. Good to go!
 
