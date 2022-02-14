@@ -1,6 +1,6 @@
 ## project p-2022-093
 
-# running the expiremint:
+### running the expiremint:
 1. In the project, `NetCache/` open a terminal, run:
    ```bash
    make
@@ -15,11 +15,14 @@
    pingall
    ```
    This will check that the besic routing is working.
-
-2. You should now see a Mininet command prompt. Open two terminals for `h1` and
+3. You should now see a Mininet command prompt. Open two terminals for `h1` and
 `h2`, respectively: 
   ```bash
   mininet> xterm h1 h2
   ```
 
+### Notes
+> The traffic packets of the TCP protocol (using scapy) use **flags = 3** whan want to signal to the switch to drop the packet, because it is in the cache.
+> The traffic passing as in a data-center has a prefix of 192.0.0.0/8.
+> 
 
