@@ -22,6 +22,8 @@ Our proposed method includes creating a network with several switches which send
    chmod 777 pip_install.sh
    ./pip_install.sh
 ``` 
+5. Good to go!
+
 ## Expiriments:
 TODO detail the topologies
 
