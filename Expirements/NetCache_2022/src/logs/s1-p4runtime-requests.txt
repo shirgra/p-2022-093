@@ -1,10 +1,10 @@
 
-[2022-02-10 08:53:09.915] /p4.v1.P4Runtime/SetForwardingPipelineConfig
+[2022-04-05 07:53:38.734] /p4.v1.P4Runtime/SetForwardingPipelineConfig
 ---
 Message too long (18459 bytes)! Skipping log...
 ---
 
-[2022-02-10 08:53:09.919] /p4.v1.P4Runtime/Write
+[2022-04-05 07:53:38.745] /p4.v1.P4Runtime/Write
 ---
 election_id {
   low: 1
@@ -39,7 +39,7 @@ updates {
 }
 ---
 
-[2022-02-10 08:53:09.921] /p4.v1.P4Runtime/Write
+[2022-04-05 07:53:38.746] /p4.v1.P4Runtime/Write
 ---
 election_id {
   low: 1
@@ -74,7 +74,7 @@ updates {
 }
 ---
 
-[2022-02-10 08:53:09.922] /p4.v1.P4Runtime/Write
+[2022-04-05 07:53:38.746] /p4.v1.P4Runtime/Write
 ---
 election_id {
   low: 1
@@ -101,41 +101,6 @@ updates {
           params {
             param_id: 2
             value: "\000\003"
-          }
-        }
-      }
-    }
-  }
-}
----
-
-[2022-02-10 08:53:09.923] /p4.v1.P4Runtime/Write
----
-election_id {
-  low: 1
-}
-updates {
-  type: INSERT
-  entity {
-    table_entry {
-      table_id: 33574068
-      match {
-        field_id: 1
-        lpm {
-          value: "\300\000\000\000"
-          prefix_len: 8
-        }
-      }
-      action {
-        action {
-          action_id: 16799317
-          params {
-            param_id: 1
-            value: "\010\000\000\000\001\021"
-          }
-          params {
-            param_id: 2
-            value: "\000\001"
           }
         }
       }

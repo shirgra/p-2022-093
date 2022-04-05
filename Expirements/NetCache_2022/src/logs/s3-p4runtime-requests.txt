@@ -1,10 +1,46 @@
 
-[2022-02-10 08:53:09.887] /p4.v1.P4Runtime/SetForwardingPipelineConfig
+[2022-04-05 07:53:38.741] /p4.v1.P4Runtime/SetForwardingPipelineConfig
 ---
 Message too long (18472 bytes)! Skipping log...
 ---
 
-[2022-02-10 08:53:09.892] /p4.v1.P4Runtime/Write
+[2022-04-05 07:53:38.749] /p4.v1.P4Runtime/Write
+---
+device_id: 2
+election_id {
+  low: 1
+}
+updates {
+  type: INSERT
+  entity {
+    table_entry {
+      table_id: 33574068
+      match {
+        field_id: 1
+        lpm {
+          value: "\n\000\003\003"
+          prefix_len: 32
+        }
+      }
+      action {
+        action {
+          action_id: 16799317
+          params {
+            param_id: 1
+            value: "\010\000\000\000\0033"
+          }
+          params {
+            param_id: 2
+            value: "\000\001"
+          }
+        }
+      }
+    }
+  }
+}
+---
+
+[2022-04-05 07:53:38.750] /p4.v1.P4Runtime/Write
 ---
 device_id: 2
 election_id {
@@ -40,7 +76,7 @@ updates {
 }
 ---
 
-[2022-02-10 08:53:09.894] /p4.v1.P4Runtime/Write
+[2022-04-05 07:53:38.750] /p4.v1.P4Runtime/Write
 ---
 device_id: 2
 election_id {
@@ -68,42 +104,6 @@ updates {
           params {
             param_id: 2
             value: "\000\003"
-          }
-        }
-      }
-    }
-  }
-}
----
-
-[2022-02-10 08:53:09.895] /p4.v1.P4Runtime/Write
----
-device_id: 2
-election_id {
-  low: 1
-}
-updates {
-  type: INSERT
-  entity {
-    table_entry {
-      table_id: 33574068
-      match {
-        field_id: 1
-        lpm {
-          value: "\n\000\003\003"
-          prefix_len: 32
-        }
-      }
-      action {
-        action {
-          action_id: 16799317
-          params {
-            param_id: 1
-            value: "\010\000\000\000\0033"
-          }
-          params {
-            param_id: 2
-            value: "\000\001"
           }
         }
       }
