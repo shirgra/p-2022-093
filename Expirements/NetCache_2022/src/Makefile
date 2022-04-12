@@ -35,6 +35,7 @@ endif
 all: run
 
 run: build
+	sudo mn -c
 	sudo python $(RUN_SCRIPT) -t $(TOPO) $(run_args)
 
 stop:

@@ -118,6 +118,8 @@ def readTableRules(p4info_helper, sw):
 
 if __name__ == '__main__':
 
+    print "Starting Controller Program"
+
     ## Retriving information about the envirunment:
     if True:
         parser = argparse.ArgumentParser(description='P4Runtime Controller')
@@ -141,9 +143,12 @@ if __name__ == '__main__':
         bmv2_file_path = args.bmv2_json
         p4info_helper = p4runtime_lib.helper.P4InfoHelper(args.p4info)
 
+    print "Uploaded p4-runtime system parameters"
+
+
     ## Set initial definition the the smart switches
     try:
-        # Create a switch connection object for s1 and s2;
+        # Create a switch connection object;
         # this is backed by a P4Runtime gRPC connection.
         # Also, dump all P4Runtime messages sent to switch to given txt files.
         s1 = p4runtime_lib.bmv2.Bmv2SwitchConnection(
@@ -151,21 +156,29 @@ if __name__ == '__main__':
             address='127.0.0.1:50051',
             device_id=0,
             proto_dump_file='logs/s1-p4runtime-requests.txt')
+        print "Created s1"
         s2 = p4runtime_lib.bmv2.Bmv2SwitchConnection(
             name='s2',
             address='127.0.0.1:50052',
             device_id=1,
             proto_dump_file='logs/s2-p4runtime-requests.txt')
+        print "Created s2"
         s3 = p4runtime_lib.bmv2.Bmv2SwitchConnection(
             name='s3',
             address='127.0.0.1:50053',
             device_id=2,
             proto_dump_file='logs/s3-p4runtime-requests.txt')
+        print "Created s3"
+
         # Send master arbitration update message to establish this controller as
         # master (required by P4Runtime before performing any other write operation)
         s1.MasterArbitrationUpdate()
-        s2.MasterArbitrationUpdate()
+        req_2 = s2.MasterArbitrationUpdate()
         s3.MasterArbitrationUpdate()
+        print "MasterArbitrationUpdate Successfull"
+
+        # readTableRules(p4info_helper, s2)
+
         # Install the P4 program on the switches
         s1.SetForwardingPipelineConfig(p4info=p4info_helper.p4info, bmv2_json_file_path=bmv2_file_path)
         s2.SetForwardingPipelineConfig(p4info=p4info_helper.p4info, bmv2_json_file_path=bmv2_file_path)
@@ -173,9 +186,10 @@ if __name__ == '__main__':
         print "\nInstalled P4 Program using SetForwardingPipelineConfig on all switches."
 
         # loading after 10 seconds
-        #print '\nWaiting 10 seconds before installing the basic rules...'
-        #sleep(10)
-        
+        # print '\nWaiting 10 seconds before installing the basic rules...'
+        # sleep(10)
+
+
         # Write the beasic rules - triangle topology
         writeBasicSwitchRules(p4info_helper, src_sw=s1,
                         host_eth_addr="08:00:00:00:01:11", host_ip_addr="10.0.1.1",
@@ -190,8 +204,12 @@ if __name__ == '__main__':
                         sw_port_2_eth_addr="08:00:00:00:01:00", sw_port_2_ip_addr="10.0.1.1",
                         sw_port_3_eth_addr="08:00:00:00:02:00", sw_port_3_ip_addr="10.0.2.2")
         print 'Instlled Basic rules.'
-
         """
+        # check window 10 seconds
+        print '\nWaiting 10 seconds before installing more rules...'
+        sleep(10)
+
+        
         # install default rules - all unknown addresses goto h1
         writeStaticRule(p4info_helper, s1, "192.0.0.0", mask=8, 
                     action="MyIngress.ipv4_forward", dst_host_eth_addr="08:00:00:00:01:11", sw_exit_post=1)
@@ -216,13 +234,10 @@ if __name__ == '__main__':
 
         # Print the tunnel counters every 2 seconds
         while True:
-            print 'Waiting for packettttttt'
-            packetin = s1.PacketIn()
-            print '%s' % packetin
-            print '%s' %  s1.requests_stream
-            for item in s1.stream_msg_resp:
-                print '223'
-                print '%s' % item
+            #s1.MasterArbitrationUpdate()
+            print "waiting to packetttttt"
+            packetin = s2.PacketIn(req_2)
+            print "got packetttttt:  %s\n\n" % packetin
             print '\n----- Reading Data -----'
             readTableRules(p4info_helper, s1)
             readTableRules(p4info_helper, s2)
