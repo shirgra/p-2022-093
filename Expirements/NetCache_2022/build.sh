@@ -2,15 +2,17 @@
 # To run an expirement run: ./build.sh <topo-topology> <cache_size> <threshold_size>
 
 # directories defines
-BUILD_DIR=build_dependencies
-EXP_DIR=experiments_depansencies
-RES_DIR=experiments_results
+SRC=src
+BUILD_DIR=${SRC}/build_dependencies
+EXP_DIR=${SRC}/experiments_depansencies
+RES_DIR=${SRC}/experiments_results
 
 # Step 0: 
-echo "Building Envirunment."
+echo "\nWelcome to NetCache expirement"
+echo "\nBuilding Envirunment..."
 
 # Experiments defines - defaults
-TOPO_DIR=triangle_topology
+TOPO_DIR=${SRC}/hat_topology
 CACHE_SIZE=8
 THRESHOLD=10
 
@@ -33,7 +35,7 @@ then
 else
 	echo "Did not received Parameters, you can insert parameters:"
 	echo "./build.sh <topo_topology> <cache_size> <threshold_size>"
-	echo "Default is set to be: ./build.sh triangle_topology 8 10"
+	echo "Default is set to be: ./build.sh hat_topology 8 10\n"
 fi
 
 # Step 1: Clean previous processes
@@ -42,5 +44,4 @@ echo "Cleaned Mininet envirunment."
 
 # Step 2: Create *.json and *.p4info
 echo "Running Makefile in $TOPO_DIR."
-cd $TOPO_DIR && make # > dump_makefile.txt # TODO dont print to screen?? make > /dev/null
-echo "Envirunment built in $TOPO_DIR."
+cd $TOPO_DIR && make -s # >> Running Makefile in silent mode

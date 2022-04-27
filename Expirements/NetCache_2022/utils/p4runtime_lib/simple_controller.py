@@ -96,13 +96,13 @@ def program_switch(addr, device_id, sw_conf_file, workdir, proto_dump_fpath):
         error("While parsing input runtime configuration: %s" % str(e))
         return
 
-    info('Using P4Info file %s...' % sw_conf['p4info'])
+    # info('Using P4Info file %s...' % sw_conf['p4info'])
     p4info_fpath = os.path.join(workdir, sw_conf['p4info'])
     p4info_helper = helper.P4InfoHelper(p4info_fpath)
 
     target = sw_conf['target']
 
-    info("Connecting to P4Runtime server on %s (%s)..." % (addr, target))
+    # info("Connecting to P4Runtime server on %s (%s)..." % (addr, target))
 
     if target == "bmv2":
         sw = bmv2.Bmv2SwitchConnection(address=addr, device_id=device_id,
@@ -114,7 +114,7 @@ def program_switch(addr, device_id, sw_conf_file, workdir, proto_dump_fpath):
         sw.MasterArbitrationUpdate()
 
         if target == "bmv2":
-            info("Setting pipeline config (%s)..." % sw_conf['bmv2_json'])
+            # info("Setting pipeline config (%s)..." % sw_conf['bmv2_json'])
             bmv2_json_fpath = os.path.join(workdir, sw_conf['bmv2_json'])
             sw.SetForwardingPipelineConfig(p4info=p4info_helper.p4info,
                                            bmv2_json_file_path=bmv2_json_fpath)
@@ -123,23 +123,23 @@ def program_switch(addr, device_id, sw_conf_file, workdir, proto_dump_fpath):
 
         if 'table_entries' in sw_conf:
             table_entries = sw_conf['table_entries']
-            info("Inserting %d table entries..." % len(table_entries))
+            # info("Inserting %d table entries..." % len(table_entries))
             for entry in table_entries:
-                info(tableEntryToString(entry))
+                # info(tableEntryToString(entry))
                 insertTableEntry(sw, entry, p4info_helper)
 
         if 'multicast_group_entries' in sw_conf:
             group_entries = sw_conf['multicast_group_entries']
-            info("Inserting %d group entries..." % len(group_entries))
+            # info("Inserting %d group entries..." % len(group_entries))
             for entry in group_entries:
-                info(groupEntryToString(entry))
+                # info(groupEntryToString(entry))
                 insertMulticastGroupEntry(sw, entry, p4info_helper)
 
         if 'clone_session_entries' in sw_conf:
             clone_entries = sw_conf['clone_session_entries']
-            info("Inserting %d clone entries..." % len(clone_entries))
+            # info("Inserting %d clone entries..." % len(clone_entries))
             for entry in clone_entries:
-                info(cloneEntryToString(entry))
+                # info(cloneEntryToString(entry))
                 insertCloneGroupEntry(sw, entry, p4info_helper)
 
     finally:

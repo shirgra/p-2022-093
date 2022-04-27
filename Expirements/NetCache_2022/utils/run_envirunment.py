@@ -165,7 +165,7 @@ class ExerciseRunner:
         """
 
         self.quiet = quiet
-        self.logger('Reading topology file.')
+        # self.logger('Reading topology file.')
         with open(topo_file, 'r') as f:
             topo = json.load(f)
         self.hosts = topo['hosts']
@@ -265,7 +265,7 @@ class ExerciseRunner:
         grpc_port = sw_obj.grpc_port
         device_id = sw_obj.device_id
         runtime_json = sw_dict['runtime_json']
-        self.logger('Configuring switch %s using P4Runtime with file %s' % (sw_name, runtime_json))
+        # self.logger('Configuring switch %s using P4Runtime with file %s' % (sw_name, runtime_json))
         with open(runtime_json, 'r') as sw_conf_file:
             outfile = '%s/%s-p4runtime-requests.txt' %(self.log_dir, sw_name)
             p4runtime_lib.simple_controller.program_switch(
@@ -285,7 +285,7 @@ class ExerciseRunner:
         thrift_port = sw_obj.thrift_port
 
         cli_input_commands = sw_dict['cli_input']
-        self.logger('Configuring switch %s with file %s' % (sw_name, cli_input_commands))
+        # self.logger('Configuring switch %s with file %s' % (sw_name, cli_input_commands))
         with open(cli_input_commands, 'r') as fin:
             cli_outfile = '%s/%s_cli_output.log'%(self.log_dir, sw_name)
             with open(cli_outfile, 'w') as fout:
@@ -320,14 +320,15 @@ class ExerciseRunner:
                 - A mininet instance is stored as self.net and self.net.start() has
                   been called.
         """
-        print("\n**********Decribing the entities in the network:")
+        print("\nDecribing the entities in the network:")
         for s in self.net.switches:
             s.describe()
         for h in self.net.hosts:
             h.describe()
-        self.logger("Starting mininet CLI")
+        self.logger("Starting mininet CLI:\n")
         # Generate a message that will be printed by the Mininet CLI to make
         # interacting with the simple switch a little easier.
+        """
         print('')
         print('======================================================================')
         print('Welcome to the BMV2 Mininet CLI!')
@@ -352,6 +353,7 @@ class ExerciseRunner:
             print('corresponding txt file in %s:' % self.log_dir)
             print(' for example run:  cat %s/s1-p4runtime-requests.txt' % self.log_dir)
             print('')
+        """
 
         CLI(self.net)
 
