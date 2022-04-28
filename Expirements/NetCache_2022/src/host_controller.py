@@ -83,25 +83,7 @@ def get_rule(wanted_addr = None):
         #print(res_rule)
         return str(res_rule)
     return False
-
-def handle_pkt(pkt):
-    if TCP in pkt and pkt[TCP].dport == 1234:
-        addr_of_host_sending_request = pkt[IP].src
-        lookup_ip_request            = pkt[IP].dst # todo decide if patch stayes or fixed
-        sys.stdout.flush() 
-        # TODO add to counters
-        # parse varables from packet
-        # check if the address metch our rules
-        controller_answer = get_rule(lookup_ip_request)
-        # if match - send back packet to host with payload = (IP,MASK)
-        if controller_answer:
-            print("Received a new requenst. Returning to host a rule.")
-            send_rule_to_host(ip_dst_addr = addr_of_host_sending_request, metadata = controller_answer)
-        else:
-            print("Received a new requenst. Dumping packet.")
-        #pkt.show2()
         
-
 def send_rule_to_host(ip_dst_addr, metadata):
     """
     this function sends one packet to the outside world.
@@ -128,11 +110,34 @@ def send_rule_to_host(ip_dst_addr, metadata):
     return True
 
 
+def handle_pkt(pkt):
+    if TCP in pkt and pkt[TCP].dport == 1234: # notice 1234 has to be identical to the one in host_traffic_generator
+        addr_of_host_sending_request = pkt[IP].src
+        lookup_ip_request            = pkt[IP].dst 
+        sys.stdout.flush() 
+        # TODO add to counters
+        # parse varables from packet
+        # check if the address metch our rules
+        controller_answer = get_rule(lookup_ip_request)
+        # if match - send back packet to host with payload = (IP,MASK)
+        if controller_answer:
+            print("Received a new requenst: Writing rule to the outside controller.")
+            # TODO write to file
+
+            """
+            print("Received a new requenst. Returning to host a rule.")
+            send_rule_to_host(ip_dst_addr = addr_of_host_sending_request, metadata = controller_answer)
+            """
+        else:
+            #TODO keep threshold
+            print("Received a new requenst: Counting threshold.")
+        
+
 """ main function """
 if __name__ == '__main__':
     # initial uploading for policy csv
     if len(sys.argv)<2:
-        print('Need to pass a .csv file of policy rules: ./controller.py policy.csv')
+        print('Need to pass a .csv file of policy rules: ./host_controller.py policy.csv')
         exit(1)
     # upload the policy to our ptogram
     try:
@@ -150,7 +155,7 @@ if __name__ == '__main__':
         print("Failed to upload csv file.")
         exit(1)
     # main pipeline -> listen to eth0 (receive socket) and replay according to a policy table
-    print("Staring The Controller Program")
+    print("Staring The Host Controller Program")
     print("Press ctrl + z to exit the program.")
     # keep results for expirement
     # TODO keep up with the hits and misses and write it to file - make them global variables
@@ -158,7 +163,7 @@ if __name__ == '__main__':
     # listen to packets incoming ...
     ifaces = filter(lambda i: 'eth' in i, os.listdir('/sys/class/net/'))
     iface = ifaces[0]
-    print "sniffing on %s" % iface
+    print "Sniffing on %s - ready." % iface
     sys.stdout.flush()
     # for every packet comming in we handle_pkt --- stuck here untill ctrl + c (listening...)
     while True:
@@ -174,4 +179,6 @@ addr = socket.gethostbyname(sys.argv[1]) # get MAC address?
 x = threading.Thread(target=thread_receiver, args=(1,5,)) # assign thread
 x.start() # start running the thread
 x.join() # wait for thread to finish before continue
+#pkt.show2()
+
 """

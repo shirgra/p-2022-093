@@ -1,10 +1,10 @@
 
-[2022-04-27 14:36:29.963] /p4.v1.P4Runtime/SetForwardingPipelineConfig
+[2022-04-28 17:49:24.433] /p4.v1.P4Runtime/SetForwardingPipelineConfig
 ---
 Message too long (18763 bytes)! Skipping log...
 ---
 
-[2022-04-27 14:36:29.967] /p4.v1.P4Runtime/Write
+[2022-04-28 17:49:24.502] /p4.v1.P4Runtime/Write
 ---
 election_id {
   low: 1
@@ -39,7 +39,7 @@ updates {
 }
 ---
 
-[2022-04-27 14:36:29.968] /p4.v1.P4Runtime/Write
+[2022-04-28 17:49:24.504] /p4.v1.P4Runtime/Write
 ---
 election_id {
   low: 1
@@ -74,7 +74,7 @@ updates {
 }
 ---
 
-[2022-04-27 14:36:29.969] /p4.v1.P4Runtime/Write
+[2022-04-28 17:49:24.505] /p4.v1.P4Runtime/Write
 ---
 election_id {
   low: 1
@@ -109,7 +109,7 @@ updates {
 }
 ---
 
-[2022-04-27 14:36:29.969] /p4.v1.P4Runtime/Write
+[2022-04-28 17:49:24.512] /p4.v1.P4Runtime/Write
 ---
 election_id {
   low: 1
@@ -140,6 +140,190 @@ updates {
         }
       }
     }
+  }
+}
+---
+
+[2022-04-28 17:49:24.514] /p4.v1.P4Runtime/Read
+---
+entities {
+  table_entry {
+  }
+}
+---
+
+[2022-04-28 17:49:34.559] /p4.v1.P4Runtime/Read
+---
+entities {
+  table_entry {
+  }
+}
+---
+
+[2022-04-28 17:49:44.588] /p4.v1.P4Runtime/Read
+---
+entities {
+  table_entry {
+  }
+}
+---
+
+[2022-04-28 17:49:54.594] /p4.v1.P4Runtime/Read
+---
+entities {
+  table_entry {
+  }
+}
+---
+
+[2022-04-28 17:50:04.650] /p4.v1.P4Runtime/Read
+---
+entities {
+  table_entry {
+  }
+}
+---
+
+[2022-04-28 17:50:14.676] /p4.v1.P4Runtime/Read
+---
+entities {
+  table_entry {
+  }
+}
+---
+
+[2022-04-28 17:50:24.701] /p4.v1.P4Runtime/Read
+---
+entities {
+  table_entry {
+  }
+}
+---
+
+[2022-04-28 17:50:34.735] /p4.v1.P4Runtime/Read
+---
+entities {
+  table_entry {
+  }
+}
+---
+
+[2022-04-28 17:50:44.769] /p4.v1.P4Runtime/Read
+---
+entities {
+  table_entry {
+  }
+}
+---
+
+[2022-04-28 17:50:54.798] /p4.v1.P4Runtime/Read
+---
+entities {
+  table_entry {
+  }
+}
+---
+
+[2022-04-28 17:51:04.853] /p4.v1.P4Runtime/Read
+---
+entities {
+  table_entry {
+  }
+}
+---
+
+[2022-04-28 17:51:14.872] /p4.v1.P4Runtime/Read
+---
+entities {
+  table_entry {
+  }
+}
+---
+
+[2022-04-28 17:51:24.888] /p4.v1.P4Runtime/Read
+---
+entities {
+  table_entry {
+  }
+}
+---
+
+[2022-04-28 17:51:34.904] /p4.v1.P4Runtime/Read
+---
+entities {
+  table_entry {
+  }
+}
+---
+
+[2022-04-28 17:51:44.919] /p4.v1.P4Runtime/Read
+---
+entities {
+  table_entry {
+  }
+}
+---
+
+[2022-04-28 17:51:54.938] /p4.v1.P4Runtime/Read
+---
+entities {
+  table_entry {
+  }
+}
+---
+
+[2022-04-28 17:52:04.958] /p4.v1.P4Runtime/Read
+---
+entities {
+  table_entry {
+  }
+}
+---
+
+[2022-04-28 17:52:14.985] /p4.v1.P4Runtime/Read
+---
+entities {
+  table_entry {
+  }
+}
+---
+
+[2022-04-28 17:52:25.005] /p4.v1.P4Runtime/Read
+---
+entities {
+  table_entry {
+  }
+}
+---
+
+[2022-04-28 17:52:35.016] /p4.v1.P4Runtime/Read
+---
+entities {
+  table_entry {
+  }
+}
+---
+
+[2022-04-28 17:52:45.049] /p4.v1.P4Runtime/Read
+---
+entities {
+  table_entry {
+  }
+}
+---
+
+[2022-04-28 17:52:55.076] /p4.v1.P4Runtime/Read
+---
+entities {
+  table_entry {
+  }
+}
+---
+
+[2022-04-28 17:53:05.098] /p4.v1.P4Runtime/Read
+---
+entities {
+  table_entry {
   }
 }
 ---

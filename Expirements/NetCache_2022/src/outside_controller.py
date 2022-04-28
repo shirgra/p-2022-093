@@ -9,6 +9,8 @@ sys.path.append(os.path.join(os.path.dirname(os.path.abspath(__file__)),'../util
 import p4runtime_lib.bmv2
 from p4runtime_lib.switch import ShutdownAllSwitchConnections
 import p4runtime_lib.helper
+import time # using time module
+
 
 """HELP FUNCTIONS"""
 
@@ -99,36 +101,32 @@ def readTableRules(p4info_helper, sw):
             action = entry.action.action
             action_name = p4info_helper.get_actions_name(action.action_id)
             
-            print 'Table %s; ' % (table_name),
+            # print 'Table %s; ' % (table_name),
             for m in entry.match:
-                print '%s' % p4info_helper.get_match_field_name(table_name, m.field_id),
+                # print '%s' % p4info_helper.get_match_field_name(table_name, m.field_id),
                 # print address ipv4
                 str_tmp = list((p4info_helper.get_match_field_value(m),)[0][0]) #'\n\x00\x02\x02'
                 for s in str_tmp:
                     print '%s.' % ord(s),
-            print '->', action_name, ':',
-            for p in action.params:
-                print p4info_helper.get_action_param_name(action_name, p.param_id),
-                print '=', 
-                print '%r' % p.value,
-                print ';',
-            print 
+            print
 
 """MAIN"""
 
 if __name__ == '__main__':
 
     print "Starting Controller Program"
+    time_start = time.time()
+    
 
     ## Retriving information about the envirunment:
     if True:
         parser = argparse.ArgumentParser(description='P4Runtime Controller')
         parser.add_argument('--p4info', help='p4info proto in text format from p4c',
                             type=str, action="store", required=False,
-                            default='./build_dependencies/basic_tunnel.p4.p4info.txt')
+                            default='./build_dependencies/net_cache.p4.p4info.txt')
         parser.add_argument('--bmv2-json', help='BMv2 JSON file from p4c',
                             type=str, action="store", required=False,
-                            default='./build_dependencies/basic_tunnel.json')
+                            default='./build_dependencies/net_cache.json')
         args = parser.parse_args()
         # if does not exist -> exit
         if not os.path.exists(args.p4info):
@@ -155,40 +153,27 @@ if __name__ == '__main__':
             name='s1',
             address='127.0.0.1:50051',
             device_id=0,
-            proto_dump_file='logs/s1-p4runtime-requests.txt')
-        print "Created s1"
+            proto_dump_file='hat_topology/logs/s1-p4runtime-requests.txt') # TODO configuration file
         s2 = p4runtime_lib.bmv2.Bmv2SwitchConnection(
             name='s2',
             address='127.0.0.1:50052',
             device_id=1,
-            proto_dump_file='logs/s2-p4runtime-requests.txt')
-        print "Created s2"
+            proto_dump_file='hat_topology/logs/s2-p4runtime-requests.txt')
         s3 = p4runtime_lib.bmv2.Bmv2SwitchConnection(
             name='s3',
             address='127.0.0.1:50053',
             device_id=2,
-            proto_dump_file='logs/s3-p4runtime-requests.txt')
-        print "Created s3"
-
+            proto_dump_file='hat_topology/logs/s3-p4runtime-requests.txt')
         # Send master arbitration update message to establish this controller as
-        # master (required by P4Runtime before performing any other write operation)
         s1.MasterArbitrationUpdate()
-        req_2 = s2.MasterArbitrationUpdate()
+        s2.MasterArbitrationUpdate()
         s3.MasterArbitrationUpdate()
-        print "MasterArbitrationUpdate Successfull"
-
-        # readTableRules(p4info_helper, s2)
-
         # Install the P4 program on the switches
         s1.SetForwardingPipelineConfig(p4info=p4info_helper.p4info, bmv2_json_file_path=bmv2_file_path)
         s2.SetForwardingPipelineConfig(p4info=p4info_helper.p4info, bmv2_json_file_path=bmv2_file_path)
         s3.SetForwardingPipelineConfig(p4info=p4info_helper.p4info, bmv2_json_file_path=bmv2_file_path)
-        print "\nInstalled P4 Program using SetForwardingPipelineConfig on all switches."
-
-        # loading after 10 seconds
-        # print '\nWaiting 10 seconds before installing the basic rules...'
-        # sleep(10)
-
+        
+        print "Installed P4 Program using SetForwardingPipelineConfig on all switches."
 
         # Write the beasic rules - triangle topology
         writeBasicSwitchRules(p4info_helper, src_sw=s1,
@@ -203,12 +188,8 @@ if __name__ == '__main__':
                         host_eth_addr="08:00:00:00:03:33", host_ip_addr="10.0.3.3",
                         sw_port_2_eth_addr="08:00:00:00:01:00", sw_port_2_ip_addr="10.0.1.1",
                         sw_port_3_eth_addr="08:00:00:00:02:00", sw_port_3_ip_addr="10.0.2.2")
-        print 'Instlled Basic rules.'
-        """
-        # check window 10 seconds
-        print '\nWaiting 10 seconds before installing more rules...'
-        sleep(10)
-
+        
+        print 'Instlled Basic rules to forward packets normally to hosts in the topology.'
         
         # install default rules - all unknown addresses goto h1
         writeStaticRule(p4info_helper, s1, "192.0.0.0", mask=8, 
@@ -217,27 +198,29 @@ if __name__ == '__main__':
                     action="MyIngress.ipv4_forward", dst_host_eth_addr="08:00:00:00:01:11", sw_exit_post=2)
         writeStaticRule(p4info_helper, s3, "192.0.0.0", mask=8, 
                     action="MyIngress.ipv4_forward", dst_host_eth_addr="08:00:00:00:01:11", sw_exit_post=2)
-        print 'Installed default Cache rules'
+
+        print 'Installed default route for unknown address to be sent to h1 (inside controller)' # TODO fix-controller-bug
         
 
+        """
+        # STOPPED HERE - TODO
         # install test rules - all unknown addresses goto h1
         table_entry_tst = writeStaticRule(p4info_helper, s2, "192.168.1.1", mask=32, action="MyIngress.drop")
-        print '\nInstalled Cache rule to drop'
+        print '\nInstalled Cache rule'
         readTableRules(p4info_helper, s2)
         sleep(20)
         # delete the rule
-        # STOPPED HERE - TODO
         s2.DeleteTableEntry(table_entry_tst)
         print '\nDeleted Cache rule to drop'
         readTableRules(p4info_helper, s2)
+
+        sleep(1)
+        t = time.time()
+        print(t-time_start)
         """
 
         # Print the tunnel counters every 2 seconds
         while True:
-            #s1.MasterArbitrationUpdate()
-            print "waiting to packetttttt"
-            packetin = s2.PacketIn(req_2)
-            print "got packetttttt:  %s\n\n" % packetin
             print '\n----- Reading Data -----'
             readTableRules(p4info_helper, s1)
             readTableRules(p4info_helper, s2)
