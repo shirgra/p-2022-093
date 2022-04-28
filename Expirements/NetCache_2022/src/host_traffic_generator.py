@@ -18,11 +18,6 @@ from scapy.layers.inet import _IPOption_HDR
 import threading
 import time
 
-# initiate a cache variable - dictionary (key is address)
-CACHE_SIZE = 8 #TODO decide if this is a variable from running 
-global cache
-cache = {} # {'192.0.0.0': [32, 1]} = {'IP ADDR': [MASK, LRU]} - global variable
-
 
 """ help functions """
 

@@ -19,7 +19,17 @@ import threading
 import time
 
 # global variables
-rules = [] # this will be a list of lists ? TODO decide...
+rules = {} # {'192.0.0.0': ['32', 0]}  -> {'IP ADDR': [MASK, threshold]} 
+cache = {} # {'192.0.0.0': [32, 1]}    -> {'IP ADDR': [MASK, LRU]} 
+
+THRESHOLD = 2
+CACHE_SIZE = 8 # initiate a cache variable - dictionary (key is address)
+
+hit_to_policy_counter = 0
+miss_to_policy_counter = 0
+found_in_cache = 0
+found_not_in_cache = 0
+packet_counter = 0
 
 
 """ help functions """
@@ -60,57 +70,90 @@ def longestCommonPrefix(strs):
 def to_binary(ip):
     return ''.join([bin(int(x)+256)[3:] for x in ip.split('.')])
 
-#check if the destination address is match to the policy address by at list the mast size
-#retern [policyAddr,mask] if has a match and false if not
-def if_lpm(destAddr,policyAddr,mask):
-    dest_Addr = to_binary(destAddr)
-    policy_Addr = to_binary(policyAddr)
-    numOfEqaul = len(longestCommonPrefix([dest_Addr,policy_Addr]))
-    if (numOfEqaul >= int(mask)):
-        return [policyAddr,mask],numOfEqaul
-    return False,numOfEqaul
 
-def get_rule(wanted_addr = None):
-    max_eqaul = 0
-    res_rule = []
-    for rule in rules:
-        addr_mask,eqaul = if_lpm(wanted_addr,rule[0],rule[1])
-        if (addr_mask and eqaul > max_eqaul):
-            res_rule = addr_mask
-        else:
-            continue
-    if res_rule !=[]:
-        #print(res_rule)
-        return str(res_rule)
+def write_rule_to_file(rule):
+    rules_file = open('rules.txt', 'a')
+    rules_file.write(rule)
+    rules_file.write("\n")
+
+# this is the only place we write to the cache and change it
+def update_cache_LRU(key_addr):
+    global cache
+    curr_LRU_flag_for_key_addr = cache[key_addr][1] # LRU flag
+    # +1 to all lower values
+    for k in cache.keys():
+        m = cache[k][0]
+        i = cache[k][1]
+        if i < curr_LRU_flag_for_key_addr:
+            cache[k] = [m, i + 1]
+    # update to be last one to be used
+    cache[key_addr] = [cache[key_addr][0], 1]
+    return None
+
+# insert the new rule to cache and update LRU
+def insert_cache(new_rule):
+    global cache
+    # parse new_rule
+    new_rule = new_rule[1:-1].split(', ')
+    key = new_rule[0][1:-1] # take only the address w/o ''
+    mask = new_rule[1][1:-1] # take only the mask w/o ''
+    # check if we already have that rule
+    if key in cache.keys():
+        return None
+    # if there is room for more rules:
+    if len(cache) < CACHE_SIZE:
+        # update all LRU
+        for k in cache.keys():
+            m = cache[k][0]
+            i = cache[k][1] + 1
+            cache[k] = [m, i]
+        # insert new rule
+        cache[key] = [mask, 1]
+    else:
+        # update all LRU
+        for k in cache.keys():
+            m = cache[k][0]
+            i = cache[k][1]
+            if i == CACHE_SIZE:
+                # this is the LRU - evict rule
+                cache.pop(k, None)
+            else:
+                cache[k] = [m, i+1]
+        # insert new rule
+        cache[key] = [mask, 1]
+    return None
+
+# this function return true if we have the adress in the cache and false otherwise
+def check_if_in_cache(addr):
+    for cache_addr in cache.keys():
+        mask = cache[cache_addr][0]
+        if if_lpm(addr, cache_addr, mask):
+            update_cache_LRU(key_addr = cache_addr) # update according to LRU
+            return True
     return False
-        
-def send_rule_to_host(ip_dst_addr, metadata):
-    """
-    this function sends one packet to the outside world.
-    input:
-        ip_dst_addr: e.g. '192.10.10.15', string
-        metadata:    e.g. '[wanted_addr, 32]', string
-    output:
-        packet sent to the switch
-    """
-    # reformat string to ip
-    ip_dst_addr = socket.gethostbyname(ip_dst_addr)
-    # build params for packet
-    iface       = get_if()
-    src_hw_addr = get_if_hwaddr(iface)
-    dst_hw_addr = 'ff:ff:ff:ff:ff:ff'
-    # build packet
-    pkt =  Ether(src = src_hw_addr, dst = dst_hw_addr) 
-    pkt =  pkt / IP(dst = ip_dst_addr, flags = 2) # herd coded? flag? check
-    pkt =  pkt / TCP(dport=1234, sport=random.randint(49152,65535)) 
-    pkt =  pkt / metadata
-    # sending the pkt
-    sendp(pkt, iface=iface, verbose=False)
-    #pkt.show2()
-    return True
 
-
+# gets address as str and return the rule if exists or false otherwise
+def get_rule(wanted_addr = None):
+    global hit_to_policy_counter, miss_to_policy_counter
+    dest_Addr   = to_binary(wanted_addr)
+    # search for rule in policy:
+    for addr in rules.keys():
+        mask = rules[addr][0]
+        policy_Addr = to_binary(addr)
+        numOfEqaulBits = len(longestCommonPrefix([dest_Addr,policy_Addr]))
+        if (numOfEqaulBits >= mask):
+            # found in policy
+            hit_to_policy_counter += 1
+            return addr
+    # not found in policy - dump
+    miss_to_policy_counter += 1
+    return 0
+    
 def handle_pkt(pkt):
+    global packet_counter
+    packet_counter += 1 # update counter
+
+
     if TCP in pkt and pkt[TCP].dport == 1234: # notice 1234 has to be identical to the one in host_traffic_generator
         addr_of_host_sending_request = pkt[IP].src
         lookup_ip_request            = pkt[IP].dst 
@@ -121,17 +164,49 @@ def handle_pkt(pkt):
         controller_answer = get_rule(lookup_ip_request)
         # if match - send back packet to host with payload = (IP,MASK)
         if controller_answer:
-            print("Received a new requenst: Writing rule to the outside controller.")
-            # TODO write to file
+            # get address treshold
+            # TODO threshold
+            threshold = rules[controller_answer][1]
+            if threshold > THRESHOLD:
+                print("Received a new requenst: Writing rule to the outside controller.")
+                
+                """
+                if check_if_in_cache():
+                    found_in_cache += 1
+                else: 
+                    found_not_in_cache += 1
+                    insert_cache(new_rule = controller_answer)
+                """
+                # write to file
+                write_rule_to_file(str([controller_answer, rules[controller_answer][0]]))
 
-            """
-            print("Received a new requenst. Returning to host a rule.")
-            send_rule_to_host(ip_dst_addr = addr_of_host_sending_request, metadata = controller_answer)
-            """
+                rules[controller_answer][1] = 0
+
+
+            else:
+                # not enough miss - update threshold
+                print("Received a new requenst: Updating threshold.")
+                rules[controller_answer][1] = rules[controller_answer][1] + 1
         else:
-            #TODO keep threshold
-            print("Received a new requenst: Counting threshold.")
-        
+            print("Received a new requenst: Dumping it.")
+        """
+    
+
+        rules = {} # {'192.0.0.0': ['32', 0]}  -> {'IP ADDR': [MASK, threshold]} 
+        cache = {} # {'192.0.0.0': [32, 1]}    -> {'IP ADDR': [MASK, LRU]} 
+
+        found_in_cache = 0
+        found_not_in_cache = 0
+
+
+
+        # print values every 50 packets incoming
+        if (packet_counter % 50) == 0:
+            print("Packet counter = %d:" % packet_counter)
+            print("   Found in cache = %d and %d missed.." % (found_in_cache,found_not_in_cache))
+            print("   Hit in policy = %d and %d missed." % (hit_to_policy_counter, miss_to_policy_counter))
+        """
+       
 
 """ main function """
 if __name__ == '__main__':
@@ -146,25 +221,34 @@ if __name__ == '__main__':
         with open(name_csv) as csvfile:
             policies_csv = csv.reader(csvfile, quotechar='|')
             for policy in policies_csv:
-                rules.append(policy)
+                try:
+                    rules[policy[0]] = [(int)(policy[1]), 0] # initiate treshold to 0
+                except:
+                    pass
                 # policy[0] -> policy address
                 # policy[1] -> policy mask
-            rules = rules[1::] # dont take the headers
             print("Successfully uploaded %d rules for traffic." % len(rules))
     except:
         print("Failed to upload csv file.")
         exit(1)
     # main pipeline -> listen to eth0 (receive socket) and replay according to a policy table
     print("Staring The Host Controller Program")
+    print("Cache size is %d." % CACHE_SIZE)
+    print("Threshold size is %d." % THRESHOLD )
     print("Press ctrl + z to exit the program.")
     # keep results for expirement
     # TODO keep up with the hits and misses and write it to file - make them global variables
+
+    # open a rules file
+    rules_file = open('rules.txt', 'w')
+    print("Opend a 'rules.txt file.")
 
     # listen to packets incoming ...
     ifaces = filter(lambda i: 'eth' in i, os.listdir('/sys/class/net/'))
     iface = ifaces[0]
     print "Sniffing on %s - ready." % iface
     sys.stdout.flush()
+
     # for every packet comming in we handle_pkt --- stuck here untill ctrl + c (listening...)
     while True:
         # please notice - can only handle one packet at a time... may miss some packets in overloads...

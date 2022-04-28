@@ -1,12 +1,4 @@
 ## from traffic generator
-
-# main
-	print("Cache size is %d." % CACHE_SIZE)
-    # initiate expirement variables
-    found_in_cache = 0
-    not_found_in_cache = 0
-    # start receiving thread to listen to rules come in
-    # Thread that listen/snif
     receiver = threading.Thread(target=thread_receiver)
     receiver.start()
     time.sleep(3)
@@ -142,3 +134,38 @@ def handle_pkt(pkt):
         new_rule = bytes(pkt[TCP].payload)
         sys.stdout.flush()
         insert_cache(new_rule = new_rule)
+
+
+
+
+
+
+
+
+
+### host controller
+
+def send_rule_to_host(ip_dst_addr, metadata):
+    """
+    this function sends one packet to the outside world.
+    input:
+        ip_dst_addr: e.g. '192.10.10.15', string
+        metadata:    e.g. '[wanted_addr, 32]', string
+    output:
+        packet sent to the switch
+    """
+    # reformat string to ip
+    ip_dst_addr = socket.gethostbyname(ip_dst_addr)
+    # build params for packet
+    iface       = get_if()
+    src_hw_addr = get_if_hwaddr(iface)
+    dst_hw_addr = 'ff:ff:ff:ff:ff:ff'
+    # build packet
+    pkt =  Ether(src = src_hw_addr, dst = dst_hw_addr) 
+    pkt =  pkt / IP(dst = ip_dst_addr, flags = 2) # herd coded? flag? check
+    pkt =  pkt / TCP(dport=1234, sport=random.randint(49152,65535)) 
+    pkt =  pkt / metadata
+    # sending the pkt
+    sendp(pkt, iface=iface, verbose=False)
+    #pkt.show2()
+    return True

@@ -1,46 +1,10 @@
 
-[2022-04-28 17:49:24.493] /p4.v1.P4Runtime/SetForwardingPipelineConfig
+[2022-04-28 19:23:48.872] /p4.v1.P4Runtime/SetForwardingPipelineConfig
 ---
 Message too long (18776 bytes)! Skipping log...
 ---
 
-[2022-04-28 17:49:24.509] /p4.v1.P4Runtime/Write
----
-device_id: 2
-election_id {
-  low: 1
-}
-updates {
-  type: INSERT
-  entity {
-    table_entry {
-      table_id: 33574068
-      match {
-        field_id: 1
-        lpm {
-          value: "\n\000\003\003"
-          prefix_len: 32
-        }
-      }
-      action {
-        action {
-          action_id: 16799317
-          params {
-            param_id: 1
-            value: "\010\000\000\000\0033"
-          }
-          params {
-            param_id: 2
-            value: "\000\001"
-          }
-        }
-      }
-    }
-  }
-}
----
-
-[2022-04-28 17:49:24.510] /p4.v1.P4Runtime/Write
+[2022-04-28 19:23:48.920] /p4.v1.P4Runtime/Write
 ---
 device_id: 2
 election_id {
@@ -76,7 +40,7 @@ updates {
 }
 ---
 
-[2022-04-28 17:49:24.511] /p4.v1.P4Runtime/Write
+[2022-04-28 19:23:48.931] /p4.v1.P4Runtime/Write
 ---
 device_id: 2
 election_id {
@@ -112,7 +76,7 @@ updates {
 }
 ---
 
-[2022-04-28 17:49:24.514] /p4.v1.P4Runtime/Write
+[2022-04-28 19:23:48.935] /p4.v1.P4Runtime/Write
 ---
 device_id: 2
 election_id {
@@ -126,8 +90,8 @@ updates {
       match {
         field_id: 1
         lpm {
-          value: "\300\000\000\000"
-          prefix_len: 8
+          value: "\n\000\003\003"
+          prefix_len: 32
         }
       }
       action {
@@ -135,222 +99,15 @@ updates {
           action_id: 16799317
           params {
             param_id: 1
-            value: "\010\000\000\000\001\021"
+            value: "\010\000\000\000\0033"
           }
           params {
             param_id: 2
-            value: "\000\002"
+            value: "\000\001"
           }
         }
       }
     }
-  }
-}
----
-
-[2022-04-28 17:49:24.517] /p4.v1.P4Runtime/Read
----
-device_id: 2
-entities {
-  table_entry {
-  }
-}
----
-
-[2022-04-28 17:49:34.574] /p4.v1.P4Runtime/Read
----
-device_id: 2
-entities {
-  table_entry {
-  }
-}
----
-
-[2022-04-28 17:49:44.591] /p4.v1.P4Runtime/Read
----
-device_id: 2
-entities {
-  table_entry {
-  }
-}
----
-
-[2022-04-28 17:49:54.604] /p4.v1.P4Runtime/Read
----
-device_id: 2
-entities {
-  table_entry {
-  }
-}
----
-
-[2022-04-28 17:50:04.659] /p4.v1.P4Runtime/Read
----
-device_id: 2
-entities {
-  table_entry {
-  }
-}
----
-
-[2022-04-28 17:50:14.688] /p4.v1.P4Runtime/Read
----
-device_id: 2
-entities {
-  table_entry {
-  }
-}
----
-
-[2022-04-28 17:50:24.713] /p4.v1.P4Runtime/Read
----
-device_id: 2
-entities {
-  table_entry {
-  }
-}
----
-
-[2022-04-28 17:50:34.747] /p4.v1.P4Runtime/Read
----
-device_id: 2
-entities {
-  table_entry {
-  }
-}
----
-
-[2022-04-28 17:50:44.783] /p4.v1.P4Runtime/Read
----
-device_id: 2
-entities {
-  table_entry {
-  }
-}
----
-
-[2022-04-28 17:50:54.811] /p4.v1.P4Runtime/Read
----
-device_id: 2
-entities {
-  table_entry {
-  }
-}
----
-
-[2022-04-28 17:51:04.860] /p4.v1.P4Runtime/Read
----
-device_id: 2
-entities {
-  table_entry {
-  }
-}
----
-
-[2022-04-28 17:51:14.874] /p4.v1.P4Runtime/Read
----
-device_id: 2
-entities {
-  table_entry {
-  }
-}
----
-
-[2022-04-28 17:51:24.897] /p4.v1.P4Runtime/Read
----
-device_id: 2
-entities {
-  table_entry {
-  }
-}
----
-
-[2022-04-28 17:51:34.906] /p4.v1.P4Runtime/Read
----
-device_id: 2
-entities {
-  table_entry {
-  }
-}
----
-
-[2022-04-28 17:51:44.926] /p4.v1.P4Runtime/Read
----
-device_id: 2
-entities {
-  table_entry {
-  }
-}
----
-
-[2022-04-28 17:51:54.951] /p4.v1.P4Runtime/Read
----
-device_id: 2
-entities {
-  table_entry {
-  }
-}
----
-
-[2022-04-28 17:52:04.967] /p4.v1.P4Runtime/Read
----
-device_id: 2
-entities {
-  table_entry {
-  }
-}
----
-
-[2022-04-28 17:52:14.990] /p4.v1.P4Runtime/Read
----
-device_id: 2
-entities {
-  table_entry {
-  }
-}
----
-
-[2022-04-28 17:52:25.009] /p4.v1.P4Runtime/Read
----
-device_id: 2
-entities {
-  table_entry {
-  }
-}
----
-
-[2022-04-28 17:52:35.030] /p4.v1.P4Runtime/Read
----
-device_id: 2
-entities {
-  table_entry {
-  }
-}
----
-
-[2022-04-28 17:52:45.062] /p4.v1.P4Runtime/Read
----
-device_id: 2
-entities {
-  table_entry {
-  }
-}
----
-
-[2022-04-28 17:52:55.081] /p4.v1.P4Runtime/Read
----
-device_id: 2
-entities {
-  table_entry {
-  }
-}
----
-
-[2022-04-28 17:53:05.114] /p4.v1.P4Runtime/Read
----
-device_id: 2
-entities {
-  table_entry {
   }
 }
 ---
