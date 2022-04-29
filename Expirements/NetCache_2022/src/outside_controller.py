@@ -60,7 +60,6 @@ def writeStaticRule(p4info_helper, src_sw, dst_ip_addr, mask=32,
     action="MyIngress.ipv4_forward", dst_host_eth_addr="08:00:00:00:01:11", sw_exit_post=1):
 
     if action == "MyIngress.ipv4_forward":
-        print "MyIngress.ipv4_forward"
         table_entry = p4info_helper.buildTableEntry(
             table_name="MyIngress.ipv4_lpm",
             match_fields={
@@ -73,7 +72,6 @@ def writeStaticRule(p4info_helper, src_sw, dst_ip_addr, mask=32,
             })
 
     if action == "MyIngress.drop":
-        print "MyIngress.drop"
         table_entry = p4info_helper.buildTableEntry(
             table_name="MyIngress.ipv4_lpm",
             match_fields={
@@ -221,10 +219,12 @@ if __name__ == '__main__':
 
         # Print the tunnel counters every 2 seconds
         while True:
+            """
             print '\n----- Reading Data -----'
             readTableRules(p4info_helper, s1)
             readTableRules(p4info_helper, s2)
             readTableRules(p4info_helper, s3)
+            """
             sleep(10)
 
 
