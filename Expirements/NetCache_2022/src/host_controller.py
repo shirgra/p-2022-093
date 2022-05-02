@@ -137,7 +137,7 @@ def get_rule(wanted_addr = None):
             return pol
     # not found in policy - dump
     miss_to_policy_counter += 1
-    return 0
+    return -1
     
 def handle_pkt(pkt):
     global packet_counter, miss_to_policy_counter, hit_to_policy_counter, found_in_cache, found_not_in_cache
@@ -152,7 +152,7 @@ def handle_pkt(pkt):
         # check if the address metch our rules
         controller_answer = get_rule(lookup_ip_request)
         # if match - send back packet to host with payload = (IP,MASK)
-        if controller_answer: # policy_id in{ policy_id: ['IP ADDR', MASK, threshold] }
+        if controller_answer != -1: # policy_id in{ policy_id: ['IP ADDR', MASK, threshold] }
             # get address treshold
             threshold = rules[controller_answer][2]
             if threshold > THRESHOLD:
