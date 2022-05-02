@@ -1,0 +1,76 @@
+mkdir -p pcaps logs
+p4c-bm2-ss --std p4-16 \
+	--target bmv2 --arch v1model \
+	-o ../build_dependencies/net_cache.json \
+	--p4runtime-files ../build_dependencies/net_cache.p4.p4info.txt \
+	--p4runtime-format text ../build_dependencies/net_cache.p4
+sudo python ../../utils/run_envirunment.py -t topology.json -j ../build_dependencies/net_cache.json -b simple_switch_grpc
+Reading topology file.
+Building mininet topology.
+Configuring switch s3 using P4Runtime with file s3-runtime.json
+ - Using P4Info file ../build_dependencies/net_cache.p4.p4info.txt...
+ - Connecting to P4Runtime server on 127.0.0.1:50053 (bmv2)...
+ - Setting pipeline config (../build_dependencies/net_cache.json)...
+ - Inserting 3 table entries...
+ - MyIngress.ipv4_lpm: hdr.ipv4.dstAddr=['10.0.1.1', 32] => MyIngress.ipv4_forward(dstAddr=08:00:00:00:01:00, port=2)
+ - MyIngress.ipv4_lpm: hdr.ipv4.dstAddr=['10.0.2.2', 32] => MyIngress.ipv4_forward(dstAddr=08:00:00:00:02:00, port=3)
+ - MyIngress.ipv4_lpm: hdr.ipv4.dstAddr=['10.0.3.3', 32] => MyIngress.ipv4_forward(dstAddr=08:00:00:00:03:33, port=1)
+Configuring switch s2 using P4Runtime with file s2-runtime.json
+ - Using P4Info file ../build_dependencies/net_cache.p4.p4info.txt...
+ - Connecting to P4Runtime server on 127.0.0.1:50052 (bmv2)...
+ - Setting pipeline config (../build_dependencies/net_cache.json)...
+ - Inserting 4 table entries...
+ - MyIngress.ipv4_lpm: hdr.ipv4.dstAddr=['10.0.1.1', 32] => MyIngress.ipv4_forward(dstAddr=08:00:00:00:01:00, port=2)
+ - MyIngress.ipv4_lpm: hdr.ipv4.dstAddr=['10.0.2.2', 32] => MyIngress.ipv4_forward(dstAddr=08:00:00:00:02:22, port=1)
+ - MyIngress.ipv4_lpm: hdr.ipv4.dstAddr=['10.0.3.3', 32] => MyIngress.ipv4_forward(dstAddr=08:00:00:00:03:00, port=3)
+ - MyIngress.ipv4_lpm: hdr.ipv4.dstAddr=['192.0.0.0', 8] => MyIngress.ipv4_forward(dstAddr=08:00:00:00:01:00, port=2)
+Configuring switch s1 using P4Runtime with file s1-runtime.json
+ - Using P4Info file ../build_dependencies/net_cache.p4.p4info.txt...
+ - Connecting to P4Runtime server on 127.0.0.1:50051 (bmv2)...
+ - Setting pipeline config (../build_dependencies/net_cache.json)...
+ - Inserting 4 table entries...
+ - MyIngress.ipv4_lpm: hdr.ipv4.dstAddr=['10.0.1.1', 32] => MyIngress.ipv4_forward(dstAddr=08:00:00:00:01:11, port=1)
+ - MyIngress.ipv4_lpm: hdr.ipv4.dstAddr=['10.0.2.2', 32] => MyIngress.ipv4_forward(dstAddr=08:00:00:00:02:00, port=2)
+ - MyIngress.ipv4_lpm: hdr.ipv4.dstAddr=['10.0.3.3', 32] => MyIngress.ipv4_forward(dstAddr=08:00:00:00:03:00, port=3)
+ - MyIngress.ipv4_lpm: hdr.ipv4.dstAddr=['192.0.0.0', 8] => MyIngress.ipv4_forward(dstAddr=08:00:00:00:01:11, port=1)
+
+**********Decribing the entities in the network:
+s1 -> gRPC port: 50051
+s2 -> gRPC port: 50052
+s3 -> gRPC port: 50053
+**********
+h1
+default interface: eth0	10.0.1.1	08:00:00:00:01:11
+**********
+**********
+h2
+default interface: eth0	10.0.2.2	08:00:00:00:02:22
+**********
+**********
+h3
+default interface: eth0	10.0.3.3	08:00:00:00:03:33
+**********
+Starting mininet CLI
+
+======================================================================
+Welcome to the BMV2 Mininet CLI!
+======================================================================
+Your P4 program is installed into the BMV2 software switch
+and your initial runtime configuration is loaded. You can interact
+with the network using the mininet CLI below.
+
+To inspect or change the switch configuration, connect to
+its CLI from your host operating system using this command:
+  simple_switch_CLI --thrift-port <switch thrift port>
+
+To view a switch log, run this command from your host OS:
+  tail -f /home/p4/Desktop/p-2022-093/Expirements/NetCache_2022/src/hat_topology/logs/<switchname>.log
+
+To view the switch output pcap, check the pcap files in /home/p4/Desktop/p-2022-093/Expirements/NetCache_2022/src/hat_topology/pcaps:
+ for example run:  sudo tcpdump -xxx -r s1-eth1.pcap
+
+To view the P4Runtime requests sent to the switch, check the
+corresponding txt file in /home/p4/Desktop/p-2022-093/Expirements/NetCache_2022/src/hat_topology/logs:
+ for example run:  cat /home/p4/Desktop/p-2022-093/Expirements/NetCache_2022/src/hat_topology/logs/s1-p4runtime-requests.txt
+
+mininet> mininet> mininet> 
