@@ -4,34 +4,52 @@
 
 ## Run our code:
 # initial settings
+1. In the project folder, `NetCache2022/` open a terminal, run:
+   ```bash
+   chmod +x build.sh
+   chmod +x src/host_controller.py
+   chmod +x src/host_traffic_generator.py
+   chmod +x src/outside_controller.py
+   pip install tqdm
+   
+   ``` 
 
 # running the expiremint:
-1. In the project, `NetCache/` open a terminal, run:
+1. In the project folder, `NetCache2022/` open a terminal, run:
    ```bash
-   make
+   ./build.sh
    ``` 
-   This will:
-   * compile `basic_tunnel.p4`, and
+   This will: TODO
+   * compile `net_cache.p4`, and
    * start a Mininet instance with three switches (`s1`, `s2`, `s3`) configured
      in a triangle, each connected to one host (`h1`, `h2`, and `h3`).
    * The hosts are assigned IPs of `10.0.1.1`, `10.0.2.2`, and `10.0.3.3`.
 2. In the Mininet terminal, run:
    ```bash
-   pingall
+   mininet> pingall
    ```
-   This will check that the besic routing is working.
+   This will check that the besic routing is working, then run.
+   ```bash
+   mininet> xterm h1 h2
+   ```
+3. If the proccess is successfull, hosts terminals opened. In Host-1 run:
+   ```bash
+   cd ..
+   ./host_controller.py expirements_dependencies/policy.csv
+   ```
+   This will start the host-coltroller program and initiate a new rules empty file.
+4. Open a new terminal, in `NetCache2022/src` and run:
+   ```bash
+   ./outsidecontroller.py
+   ```
+   This will start the outsode control to the system.
+6. In Host-2 run:
+   ```bash
+   cd ..
+   ./host_traffic_generator.py expirements_dependencies/flow_tst.csv
+   ```
+   This will start sending rules outside.
 
-2. You should now see a Mininet command prompt. Open two terminals for `h1` and
-`h2`, respectively: 
-  ```bash
-  mininet> xterm h1 h2
-  ```
-
-
-> sine note
-./outside_controller.py
-./host_traffic_generator.py expirements_dependencies/flow_tst.csv 
- ./host_controller.py expirements_dependencies/policy.csv 
 
 
 ## The bases for creating the basic topology:
@@ -46,21 +64,7 @@ Including origin files:
 6. topology.json
 ### The addition to connect with the data plaine 
 Link for the topology: p4lang/tutorials/exercises/p4runtime/ [https://github.com/p4lang/tutorials/tree/master/exercises/p4runtime].
-1. mycontroller.py -> control_plaine.py
-2. advanced_tunnel.p4 -> to be applied to basic_tunnel.p4
 
 
 ## The Topology structure:
-
 ![topology](./topo.png)
-
-TODO add the explenation for the topology 
-
-## TODOs and Tests:
-1. change s2,s3-runtime.json to smart switches. 
-this can happen using https://github.com/p4lang/tutorials/tree/master/exercises/calc 
-2. change the p4 file - > also use calc...
-3. map gilads code parts...
-4. add guilad's code parts
-5. change the makefile
-6. change the control plane
