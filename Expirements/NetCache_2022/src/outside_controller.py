@@ -86,12 +86,12 @@ def writeStaticRule(p4info_helper, src_sw, dst_ip_addr, mask=32,
     return table_entry # for deletion
 
 def readTableRules(p4info_helper, sw):
+    print '\n----- Reading tables rules for %s -----' % sw.name
     """
     Reads the table entries from all tables on the switch.
     :param p4info_helper: the P4Info helper
     :param sw: the switch connection
     """
-    print '\n----- Reading tables rules for %s -----' % sw.name
     for response in sw.ReadTableEntries():
         for entity in response.entities:
             entry = entity.table_entry
@@ -114,7 +114,6 @@ if __name__ == '__main__':
 
     print "Starting Controller Program"
     time_start = time.time()
-    
 
     ## Retriving information about the envirunment:
     if True:
@@ -200,37 +199,67 @@ if __name__ == '__main__':
         print 'Installed default route for unknown address to be sent to h1 (inside controller)' # TODO fix-controller-bug
         
 
-        """
-        # STOPPED HERE - TODO
-        # install test rules - all unknown addresses goto h1
-        table_entry_tst = writeStaticRule(p4info_helper, s2, "192.168.1.1", mask=32, action="MyIngress.drop")
-        print '\nInstalled Cache rule'
-        readTableRules(p4info_helper, s2)
-        sleep(20)
-        # delete the rule
-        s2.DeleteTableEntry(table_entry_tst)
-        print '\nDeleted Cache rule to drop'
-        readTableRules(p4info_helper, s2)
+        # prepare main work of the controller
+        f = open("rules.txt", "r")
+        rules_keeper = {}
 
-        sleep(1)
-        t = time.time()
-        print(t-time_start)
-        """
-
-        # Print the tunnel counters every 2 seconds
+        
+        # Main actions
         while True:
-            """
-            print '\n----- Reading Data -----'
-            readTableRules(p4info_helper, s1)
-            readTableRules(p4info_helper, s2)
-            readTableRules(p4info_helper, s3)
-            """
-            sleep(10)
+            # read from file
+            tmp = f.read()
+            if tmp:
+                # if read somthing new - split to rule format
+                rules_ = tmp.split('\n')
+                for rule in rules_:
+                    if rule:
+                        print(rule)
+                        # parse rule "['W', '192.10.10.25', 32]"
+                        action = rule[2] # either 'W' 'D'
+                        address = rule[7:19] # '192.10.10.25'
+                        mask = int(rule[22:24]) # 32
+                        """ MAKE ACTION """
+                        if action == 'W':
+                            # write rule to switch
+                            print("Write rule to switch")
+                            # write rule
+                            table_entry = writeStaticRule(p4info_helper, s2, address, mask=mask, action="MyIngress.drop")
+                            # add to local tracking of rules
+                            rules_keeper[(address, mask)] = table_entry
+                        elif action == 'D':
+                            # delete rule from switch
+                            print("Delete rule from switch")
+                            # get the table entry and remove it
+                            table_entry = rules_keeper.get((address, mask))
+                            rules_keeper.pop((address, mask))
+                            # delete rule
+                            s2.DeleteTableEntry(table_entry)
+            sleep(0.1) # not to jem the hole VM - todo
+
+
+
 
 
     ## ending the program
     except KeyboardInterrupt:
         print " Shutting down."
-    except grpc.RpcError as e:
-        print "gRPC Error:", e.details()
     ShutdownAllSwitchConnections()   
+
+
+
+"""
+# STOPPED HERE - TODO
+# install test rules - all unknown addresses goto h1
+table_entry_tst = writeStaticRule(p4info_helper, s2, "192.168.1.1", mask=32, action="MyIngress.drop")
+print '\nInstalled Cache rule'
+readTableRules(p4info_helper, s2)
+sleep(20)
+# delete the rule
+s2.DeleteTableEntry(table_entry_tst)
+print '\nDeleted Cache rule to drop'
+readTableRules(p4info_helper, s2)
+
+sleep(1)
+t = time.time()
+print(t-time_start)
+"""

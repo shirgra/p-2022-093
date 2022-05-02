@@ -102,6 +102,9 @@ def insert_cache(policy_id):
             msk = cache[k][1]
             lru = cache[k][2] + 1
             cache[k] = [add, msk, lru]
+        # insert new rule
+        cache[policy_id] = [rules[policy_id][0], mask, 1]
+        write_rule_to_file(str(["W",  rules[policy_id][0], rules[policy_id][1]]))
     else:
         # update all LRU
         for k in cache.keys():
@@ -112,12 +115,10 @@ def insert_cache(policy_id):
                 # this is the LRU - evict rule
                 cache.pop(k, None)
                 # write to file to delete rule
-                write_rule_to_file(str(["Delete", rules[policy_id][0], rules[policy_id][1]]))
+                write_rule_to_file(str(["D", a, m]))
+                write_rule_to_file(str(["W",  rules[policy_id][0], rules[policy_id][1]]))
             else:
                 cache[k] = [a, m, i+1]
-    # insert new rule
-    cache[policy_id] = [rules[policy_id][0], mask, 1]
-    write_rule_to_file(str(["Write", rules[policy_id][0], rules[policy_id][1]]))
     return None
 
 # gets address as str and return the rule if exists or false otherwise

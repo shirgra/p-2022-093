@@ -29,6 +29,9 @@
 
 
 > sine note
+./outside_controller.py
+./host_traffic_generator.py expirements_dependencies/flow_tst.csv 
+ ./host_controller.py expirements_dependencies/policy.csv 
 
 
 ## The bases for creating the basic topology:
