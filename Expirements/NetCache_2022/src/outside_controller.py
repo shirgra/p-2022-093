@@ -219,7 +219,7 @@ if __name__ == '__main__':
                         address = rule[7:19] # '192.10.10.25'
                         mask = int(rule[22:24]) # 32
                         """ MAKE ACTION """
-                        if action == 'W':
+                        if (action == 'W') and ((address, mask) not in rules_keeper.keys()):
                             # write rule to switch
                             print("Write rule to switch")
                             # write rule
@@ -234,7 +234,10 @@ if __name__ == '__main__':
                             rules_keeper.pop((address, mask))
                             # delete rule
                             s2.DeleteTableEntry(table_entry)
+                        # readTableRules(p4info_helper, s2)
             sleep(0.1) # not to jem the hole VM - todo
+            
+
 
 
 
