@@ -27,17 +27,6 @@ Our proposed method includes creating a network with several switches which send
 ## Expiriments:
 TODO detail the topologies
 
-TODO how to run the expiriments
-
-In the Mininet terminal, run:
-   ```bash
-   mininet> pingall
-   mininet> xterm h1 h2
-   ```
-   This will check that the besic routing is working.
-
-> sine note
-
 
 ## General Notes:
 ### Origin work: 
