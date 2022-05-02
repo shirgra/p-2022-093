@@ -3,7 +3,7 @@
 
 
 ## Run our code:
-# initial settings
+### initial settings
 1. In the project folder, `NetCache2022/` open a terminal, run:
    ```bash
    chmod +x build.sh
@@ -14,15 +14,15 @@
    
    ``` 
 
-# running the expiremint:
+### running the expiremint:
 1. In the project folder, `NetCache2022/` open a terminal, run:
    ```bash
    ./build.sh
    ``` 
-   This will: TODO
+   This will: 
    * compile `net_cache.p4`, and
    * start a Mininet instance with three switches (`s1`, `s2`, `s3`) configured
-     in a triangle, each connected to one host (`h1`, `h2`, and `h3`).
+     in a triangle, each connected to one host.
    * The hosts are assigned IPs of `10.0.1.1`, `10.0.2.2`, and `10.0.3.3`.
 2. In the Mininet terminal, run:
    ```bash
