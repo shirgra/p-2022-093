@@ -24,14 +24,17 @@ import time
 s = socket.socket()        
  
 # Define the port on which you want to connect
-port = 6633               
+port = 9998           
  
 # connect to the server on local computer
 s.connect(('127.0.0.1', port))
  
 # receive data from the server and decoding to get the string.
-while True:
-	print (s.recv(1024).decode())
+print (s.recv(1024).decode())
+
+# send a thank you message to the client. encoding to send byte type.
+s.send('No, Thank you'.encode())
+
 # close the connection
 s.close()    
      
