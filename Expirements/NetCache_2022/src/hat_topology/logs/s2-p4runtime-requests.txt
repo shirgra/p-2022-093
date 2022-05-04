@@ -1,46 +1,10 @@
 
-[2022-05-04 14:27:05.460] /p4.v1.P4Runtime/SetForwardingPipelineConfig
+[2022-05-04 15:09:14.646] /p4.v1.P4Runtime/SetForwardingPipelineConfig
 ---
 Message too long (18776 bytes)! Skipping log...
 ---
 
-[2022-05-04 14:27:05.521] /p4.v1.P4Runtime/Write
----
-device_id: 1
-election_id {
-  low: 1
-}
-updates {
-  type: INSERT
-  entity {
-    table_entry {
-      table_id: 33574068
-      match {
-        field_id: 1
-        lpm {
-          value: "\n\000\001\001"
-          prefix_len: 32
-        }
-      }
-      action {
-        action {
-          action_id: 16799317
-          params {
-            param_id: 1
-            value: "\010\000\000\000\001\000"
-          }
-          params {
-            param_id: 2
-            value: "\000\002"
-          }
-        }
-      }
-    }
-  }
-}
----
-
-[2022-05-04 14:27:05.530] /p4.v1.P4Runtime/Write
+[2022-05-04 15:09:14.665] /p4.v1.P4Runtime/Write
 ---
 device_id: 1
 election_id {
@@ -76,7 +40,43 @@ updates {
 }
 ---
 
-[2022-05-04 14:27:05.532] /p4.v1.P4Runtime/Write
+[2022-05-04 15:09:14.666] /p4.v1.P4Runtime/Write
+---
+device_id: 1
+election_id {
+  low: 1
+}
+updates {
+  type: INSERT
+  entity {
+    table_entry {
+      table_id: 33574068
+      match {
+        field_id: 1
+        lpm {
+          value: "\n\000\001\001"
+          prefix_len: 32
+        }
+      }
+      action {
+        action {
+          action_id: 16799317
+          params {
+            param_id: 1
+            value: "\010\000\000\000\001\000"
+          }
+          params {
+            param_id: 2
+            value: "\000\002"
+          }
+        }
+      }
+    }
+  }
+}
+---
+
+[2022-05-04 15:09:14.667] /p4.v1.P4Runtime/Write
 ---
 device_id: 1
 election_id {
@@ -112,7 +112,7 @@ updates {
 }
 ---
 
-[2022-05-04 14:27:05.534] /p4.v1.P4Runtime/Write
+[2022-05-04 15:09:14.673] /p4.v1.P4Runtime/Write
 ---
 device_id: 1
 election_id {
@@ -135,7 +135,7 @@ updates {
           action_id: 16799317
           params {
             param_id: 1
-            value: "\010\000\000\000\001\000"
+            value: "\010\000\000\000\001\021"
           }
           params {
             param_id: 2

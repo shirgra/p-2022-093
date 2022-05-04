@@ -10,6 +10,25 @@ import p4runtime_lib.bmv2
 from p4runtime_lib.switch import ShutdownAllSwitchConnections
 import p4runtime_lib.helper
 import time # using time module
+#!/usr/bin/env python
+import argparse
+import sys
+import socket
+import random
+import struct
+import argparse
+import os
+import csv
+from tqdm import tqdm
+# scapy logger - this remove the IPv6 warning from the terminal prints
+import logging
+logging.getLogger("scapy.runtime").setLevel(logging.ERROR)
+# scapy
+from scapy.all import *
+from scapy.layers.inet import _IPOption_HDR
+# threads
+import threading
+import time
 
 
 """HELP FUNCTIONS"""
@@ -203,41 +222,65 @@ if __name__ == '__main__':
         f = open("rules.txt", "r")
         rules_keeper = {}
 
-        
-        # Main actions
-        while True:
-            # read from file
-            tmp = f.read()
-            if tmp:
-                # if read somthing new - split to rule format
-                rules_ = tmp.split('\n')
-                for rule in rules_:
-                    if rule:
-                        print(rule)
-                        # parse rule "['W', '192.10.10.25', 32]"
-                        action = rule[2] # either 'W' 'D'
-                        address = rule[7:19] # '192.10.10.25'
-                        mask = int(rule[22:24]) # 32
-                        """ MAKE ACTION """
-                        if (action == 'W') and ((address, mask) not in rules_keeper.keys()):
-                            # write rule to switch
-                            print("Write rule to switch")
-                            # write rule
-                            table_entry = writeStaticRule(p4info_helper, s2, address, mask=mask, action="MyIngress.drop")
-                            # add to local tracking of rules
-                            rules_keeper[(address, mask)] = table_entry
-                        elif action == 'D':
-                            # delete rule from switch
-                            print("Delete rule from switch")
-                            # get the table entry and remove it
-                            table_entry = rules_keeper.get((address, mask))
-                            rules_keeper.pop((address, mask))
-                            # delete rule
-                            s2.DeleteTableEntry(table_entry)
-                        # readTableRules(p4info_helper, s2)
-            sleep(0.1) # not to jem the hole VM - todo
-            
+        # start receiving thread to listen to rules come in
+        # Thread that listen/snif
 
+
+        # listen to packets incoming ...
+        ifaces = filter(lambda i: 'eth' in i, os.listdir('/sys/class/net/'))
+        print ifaces
+
+
+        iface = ifaces[2]
+        print "Sniffing on %s - ready." % iface
+        sys.stdout.flush()
+
+        # for every packet comming in we handle_pkt --- stuck here untill ctrl + c (listening...)
+        while True:
+            # please notice - can only handle one packet at a time... may miss some packets in overloads...
+            sniff(count = 1, iface = iface, prn = lambda x: x.show2())
+        # if user press ctrl + z -> exit
+        print("\nController Program Terminated.")  
+        exit(0)
+
+
+
+
+
+
+        """
+        # read from file
+        tmp = f.read()
+        if tmp:
+            # if read somthing new - split to rule format
+            rules_ = tmp.split('\n')
+            for rule in rules_:
+                if rule:
+                    print(rule)
+                    # parse rule "['W', '192.10.10.25', 32]"
+                    action = rule[2] # either 'W' 'D'
+                    address = rule[7:19] # '192.10.10.25'
+                    mask = int(rule[22:24]) # 32
+                     MAKE ACTION 
+                    if (action == 'W') and ((address, mask) not in rules_keeper.keys()):
+                        # write rule to switch
+                        print("Write rule to switch")
+                        # write rule
+                        table_entry = writeStaticRule(p4info_helper, s2, address, mask=mask, action="MyIngress.drop")
+                        # add to local tracking of rules
+                        rules_keeper[(address, mask)] = table_entry
+                    elif action == 'D':
+                        # delete rule from switch
+                        print("Delete rule from switch")
+                        # get the table entry and remove it
+                        table_entry = rules_keeper.get((address, mask))
+                        rules_keeper.pop((address, mask))
+                        # delete rule
+                        s2.DeleteTableEntry(table_entry)
+                    # readTableRules(p4info_helper, s2)
+        sleep(0.1) # not to jem the hole VM - todo
+        """
+            
 
 
 
@@ -246,6 +289,7 @@ if __name__ == '__main__':
     ## ending the program
     except KeyboardInterrupt:
         print " Shutting down."
+    # close the connection
     ShutdownAllSwitchConnections()   
 
 

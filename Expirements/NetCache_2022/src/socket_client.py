@@ -18,23 +18,45 @@ from scapy.layers.inet import _IPOption_HDR
 import threading
 import time
 
-         
+  
  
 # Create a socket object
-s = socket.socket()        
+c = socket.socket()        
  
 # Define the port on which you want to connect
 port = 9998           
  
 # connect to the server on local computer
-s.connect(('127.0.0.1', port))
+c.connect(('127.0.0.1', port))
  
 # receive data from the server and decoding to get the string.
-print (s.recv(1024).decode())
+print (c.recv(1024).decode())
 
 # send a thank you message to the client. encoding to send byte type.
-s.send('No, Thank you'.encode())
+c.send('No, Thank you'.encode())
 
 # close the connection
 s.close()    
-     
+
+
+
+
+
+
+# listen to packets incoming ...
+ifaces = filter(lambda i: 'eth' in i, os.listdir('/sys/class/net/'))
+print ifaces
+
+
+iface = ifaces[2]
+print "Sniffing on %s - ready." % iface
+sys.stdout.flush()
+
+# for every packet comming in we handle_pkt --- stuck here untill ctrl + c (listening...)
+while True:
+    # please notice - can only handle one packet at a time... may miss some packets in overloads...
+    sniff(count = 1, iface = iface, prn = lambda x: x.show2())
+# if user press ctrl + z -> exit
+print("\nController Program Terminated.")  
+exit(0)
+ 
