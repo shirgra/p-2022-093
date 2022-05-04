@@ -31,51 +31,33 @@ import threading
 import time
 
 
-"""HELP FUNCTIONS"""
+""" P4RUNTIME FUNCTIONS """
 
-def writeBasicSwitchRules(p4info_helper, src_sw, host_eth_addr, host_ip_addr,
-    sw_port_2_eth_addr, sw_port_2_ip_addr,
-    sw_port_3_eth_addr, sw_port_3_ip_addr):
-    
-    table_entry = p4info_helper.buildTableEntry(
-        table_name="MyIngress.ipv4_lpm",
-        match_fields={
-            "hdr.ipv4.dstAddr": (host_ip_addr, 32)
-        },
-        action_name="MyIngress.ipv4_forward",
-        action_params={
-            "dstAddr": host_eth_addr,
-            "port": 1
-        })
-    src_sw.WriteTableEntry(table_entry)
+def p4runtime_init():
+    parser = argparse.ArgumentParser(description='P4Runtime Controller')
+    parser.add_argument('--p4info', help='p4info proto in text format from p4c',
+                        type=str, action="store", required=False,
+                        default='./build_dependencies/net_cache.p4.p4info.txt')
+    parser.add_argument('--bmv2-json', help='BMv2 JSON file from p4c',
+                        type=str, action="store", required=False,
+                        default='./build_dependencies/net_cache.json')
+    args = parser.parse_args()
+    # if does not exist -> exit
+    if not os.path.exists(args.p4info):
+        parser.print_help()
+        print "\np4info file not found: %s\nHave you run 'make'?" % args.p4info
+        parser.exit(1)
+    if not os.path.exists(args.bmv2_json):
+        parser.print_help()
+        print "\nBMv2 JSON file not found: %s\nHave you run 'make'?" % args.bmv2_json
+        parser.exit(1)
+    # Instantiate a P4Runtime helper from the p4info file
+    bmv2_file_path = args.bmv2_json
+    p4info_helper = p4runtime_lib.helper.P4InfoHelper(args.p4info)   
+    # return values
+    return bmv2_file_path, p4info_helper
 
-    table_entry = p4info_helper.buildTableEntry(
-        table_name="MyIngress.ipv4_lpm",
-        match_fields={
-            "hdr.ipv4.dstAddr": (sw_port_2_ip_addr, 32)
-        },
-        action_name="MyIngress.ipv4_forward",
-        action_params={
-            "dstAddr": sw_port_2_eth_addr,
-            "port": 2
-        })
-    src_sw.WriteTableEntry(table_entry)
-
-    table_entry = p4info_helper.buildTableEntry(
-        table_name="MyIngress.ipv4_lpm",
-        match_fields={
-            "hdr.ipv4.dstAddr": (sw_port_3_ip_addr, 32)
-        },
-        action_name="MyIngress.ipv4_forward",
-        action_params={
-            "dstAddr": sw_port_3_eth_addr,
-            "port": 3
-        })
-    src_sw.WriteTableEntry(table_entry)
-
-    print "Installed basic topology rules on %s" % src_sw.name
-
-def writeStaticRule(p4info_helper, src_sw, dst_ip_addr, mask=32, 
+def writeRule(p4info_helper, src_sw, dst_ip_addr, mask=32, 
     action="MyIngress.ipv4_forward", dst_host_eth_addr="08:00:00:00:01:11", sw_exit_post=1):
 
     if action == "MyIngress.ipv4_forward":
@@ -127,44 +109,29 @@ def readTableRules(p4info_helper, sw):
                     print '%s.' % ord(s),
             print
 
+
+""" CONTROLLER ALGORITHM FUNCTIONS """
+
+
+
+""" SNIFFING NETWORK FUNCTIONS """
+
+
+
 """MAIN"""
 
 if __name__ == '__main__':
 
     print "Starting Controller Program"
-    time_start = time.time()
 
     ## Retriving information about the envirunment:
-    if True:
-        parser = argparse.ArgumentParser(description='P4Runtime Controller')
-        parser.add_argument('--p4info', help='p4info proto in text format from p4c',
-                            type=str, action="store", required=False,
-                            default='./build_dependencies/net_cache.p4.p4info.txt')
-        parser.add_argument('--bmv2-json', help='BMv2 JSON file from p4c',
-                            type=str, action="store", required=False,
-                            default='./build_dependencies/net_cache.json')
-        args = parser.parse_args()
-        # if does not exist -> exit
-        if not os.path.exists(args.p4info):
-            parser.print_help()
-            print "\np4info file not found: %s\nHave you run 'make'?" % args.p4info
-            parser.exit(1)
-        if not os.path.exists(args.bmv2_json):
-            parser.print_help()
-            print "\nBMv2 JSON file not found: %s\nHave you run 'make'?" % args.bmv2_json
-            parser.exit(1)
-        # Instantiate a P4Runtime helper from the p4info file
-        bmv2_file_path = args.bmv2_json
-        p4info_helper = p4runtime_lib.helper.P4InfoHelper(args.p4info)
-
+    bmv2_file_path, p4info_helper = p4runtime_init()
     print "Uploaded p4-runtime system parameters"
 
 
     ## Set initial definition the the smart switches
     try:
-        # Create a switch connection object;
-        # this is backed by a P4Runtime gRPC connection.
-        # Also, dump all P4Runtime messages sent to switch to given txt files.
+        # acordding to current topology:
         s1 = p4runtime_lib.bmv2.Bmv2SwitchConnection(
             name='s1',
             address='127.0.0.1:50051',
@@ -180,58 +147,45 @@ if __name__ == '__main__':
             address='127.0.0.1:50053',
             device_id=2,
             proto_dump_file='hat_topology/logs/s3-p4runtime-requests.txt')
-        # Send master arbitration update message to establish this controller as
-        s1.MasterArbitrationUpdate()
-        s2.MasterArbitrationUpdate()
-        s3.MasterArbitrationUpdate()
-        # Install the P4 program on the switches
-        s1.SetForwardingPipelineConfig(p4info=p4info_helper.p4info, bmv2_json_file_path=bmv2_file_path)
-        s2.SetForwardingPipelineConfig(p4info=p4info_helper.p4info, bmv2_json_file_path=bmv2_file_path)
-        s3.SetForwardingPipelineConfig(p4info=p4info_helper.p4info, bmv2_json_file_path=bmv2_file_path)
-        
+
+        for s in [s1, s2, s3]:
+            # Send master arbitration update message to establish this controller as
+            s.MasterArbitrationUpdate()
+            # Install the P4 program on the switches
+            s.SetForwardingPipelineConfig(p4info=p4info_helper.p4info, bmv2_json_file_path=bmv2_file_path)
+      
         print "Installed P4 Program using SetForwardingPipelineConfig on all switches."
 
-        # Write the beasic rules - triangle topology
-        writeBasicSwitchRules(p4info_helper, src_sw=s1,
-                        host_eth_addr="08:00:00:00:01:11", host_ip_addr="10.0.1.1",
-                        sw_port_2_eth_addr="08:00:00:00:02:00", sw_port_2_ip_addr="10.0.2.2",
-                        sw_port_3_eth_addr="08:00:00:00:03:00", sw_port_3_ip_addr="10.0.3.3")
-        writeBasicSwitchRules(p4info_helper, src_sw=s2,
-                        host_eth_addr="08:00:00:00:02:22", host_ip_addr="10.0.2.2",
-                        sw_port_2_eth_addr="08:00:00:00:01:00", sw_port_2_ip_addr="10.0.1.1",
-                        sw_port_3_eth_addr="08:00:00:00:03:00", sw_port_3_ip_addr="10.0.3.3")
-        writeBasicSwitchRules(p4info_helper, src_sw=s3,
-                        host_eth_addr="08:00:00:00:03:33", host_ip_addr="10.0.3.3",
-                        sw_port_2_eth_addr="08:00:00:00:01:00", sw_port_2_ip_addr="10.0.1.1",
-                        sw_port_3_eth_addr="08:00:00:00:02:00", sw_port_3_ip_addr="10.0.2.2")
+        # s1 basic rules
+        writeRule(p4info_helper, s1, "10.0.1.1", mask=32, action="MyIngress.ipv4_forward", dst_host_eth_addr="08:00:00:00:01:11", sw_exit_post=1)
+        writeRule(p4info_helper, s1, "10.0.2.2", mask=32, action="MyIngress.ipv4_forward", dst_host_eth_addr="08:00:00:00:02:00", sw_exit_post=2)
+        writeRule(p4info_helper, s1, "10.0.3.3", mask=32, action="MyIngress.ipv4_forward", dst_host_eth_addr="08:00:00:00:03:00", sw_exit_post=3)
+        # s2 basic rules
+        writeRule(p4info_helper, s2, "10.0.1.1", mask=32, action="MyIngress.ipv4_forward", dst_host_eth_addr="08:00:00:00:01:00", sw_exit_post=2)
+        writeRule(p4info_helper, s2, "10.0.2.2", mask=32, action="MyIngress.ipv4_forward", dst_host_eth_addr="08:00:00:00:02:22", sw_exit_post=1)
+        writeRule(p4info_helper, s2, "10.0.3.3", mask=32, action="MyIngress.ipv4_forward", dst_host_eth_addr="08:00:00:00:03:00", sw_exit_post=3)
+        # s3 basic rules
+        writeRule(p4info_helper, s3, "10.0.1.1", mask=32, action="MyIngress.ipv4_forward", dst_host_eth_addr="08:00:00:00:01:00", sw_exit_post=3)
+        writeRule(p4info_helper, s3, "10.0.2.2", mask=32, action="MyIngress.ipv4_forward", dst_host_eth_addr="08:00:00:00:02:00", sw_exit_post=2)
+        writeRule(p4info_helper, s3, "10.0.3.3", mask=32, action="MyIngress.ipv4_forward", dst_host_eth_addr="08:00:00:00:03:33", sw_exit_post=1)
         
         print 'Instlled Basic rules to forward packets normally to hosts in the topology.'
         
         # install default rules - all unknown addresses goto h1
-        writeStaticRule(p4info_helper, s1, "192.0.0.0", mask=8, 
-                    action="MyIngress.ipv4_forward", dst_host_eth_addr="08:00:00:00:01:11", sw_exit_post=1)
-        writeStaticRule(p4info_helper, s2, "192.0.0.0", mask=8, 
-                    action="MyIngress.ipv4_forward", dst_host_eth_addr="08:00:00:00:01:11", sw_exit_post=2)
-        writeStaticRule(p4info_helper, s3, "192.0.0.0", mask=8, 
-                    action="MyIngress.ipv4_forward", dst_host_eth_addr="08:00:00:00:01:11", sw_exit_post=2)
-
-        print 'Installed default route for unknown address to be sent to h1 (inside controller)' # TODO fix-controller-bug
+        writeRule(p4info_helper, s1, "192.0.0.0", mask=8, action="MyIngress.ipv4_forward", dst_host_eth_addr="08:00:00:00:00:00", sw_exit_post=4)
+        writeRule(p4info_helper, s2, "192.0.0.0", mask=8, action="MyIngress.ipv4_forward", dst_host_eth_addr="08:00:00:00:00:00", sw_exit_post=4)
+        writeRule(p4info_helper, s3, "192.0.0.0", mask=8, action="MyIngress.ipv4_forward", dst_host_eth_addr="08:00:00:00:00:00", sw_exit_post=4)
+        print 'Installed default route for unknown address to be sent to h1 (inside controller)' 
         
 
-        # prepare main work of the controller
-        f = open("rules.txt", "r")
-        rules_keeper = {}
-
-        # start receiving thread to listen to rules come in
-        # Thread that listen/snif
-
+        ############ START LISTENING ############
 
         # listen to packets incoming ...
-        ifaces = filter(lambda i: 'eth' in i, os.listdir('/sys/class/net/'))
-        print ifaces
+        # ifaces = filter(lambda i: 'eth' in i, os.listdir('/sys/class/net/'))
+        # print ifaces
 
 
-        iface = ifaces[1]
+        iface = ifaces['s0-eth4']
         print "Sniffing on %s - ready." % iface
         sys.stdout.flush()
 
@@ -291,22 +245,3 @@ if __name__ == '__main__':
         print " Shutting down."
     # close the connection
     ShutdownAllSwitchConnections()   
-
-
-
-"""
-# STOPPED HERE - TODO
-# install test rules - all unknown addresses goto h1
-table_entry_tst = writeStaticRule(p4info_helper, s2, "192.168.1.1", mask=32, action="MyIngress.drop")
-print '\nInstalled Cache rule'
-readTableRules(p4info_helper, s2)
-sleep(20)
-# delete the rule
-s2.DeleteTableEntry(table_entry_tst)
-print '\nDeleted Cache rule to drop'
-readTableRules(p4info_helper, s2)
-
-sleep(1)
-t = time.time()
-print(t-time_start)
-"""
