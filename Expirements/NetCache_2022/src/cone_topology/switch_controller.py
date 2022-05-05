@@ -1,35 +1,48 @@
 #!/usr/bin/env python2
+
 import argparse
 import grpc
 import os
 import sys
+import time
+import socket
+import random
+import struct
+import csv
 from time import sleep
+from tqdm import tqdm
+
 # Import P4Runtime lib from parent utils dir Probably there's a better way of doing this.
 sys.path.append(os.path.join(os.path.dirname(os.path.abspath(__file__)),'../../utils/'))
 import p4runtime_lib.bmv2
 from p4runtime_lib.switch import ShutdownAllSwitchConnections
 import p4runtime_lib.helper
-import time # using time module
-#!/usr/bin/env python
-import argparse
-import sys
-import socket
-import random
-import struct
-import argparse
-import os
-import csv
-from tqdm import tqdm
+
 # scapy logger - this remove the IPv6 warning from the terminal prints
 import logging
 logging.getLogger("scapy.runtime").setLevel(logging.ERROR)
 # scapy
 from scapy.all import *
 from scapy.layers.inet import _IPOption_HDR
-# threads
-import threading
-import time
 
+###########################################################################################
+
+THRESHOLD = 2
+CACHE_SIZE = 8
+
+# global variables
+
+rules = {}    # {1: ['192.0.0.0', 32]}  -> { policy_id: ['IP ADDR', MASK] } 
+
+s1_cache = {} # {2: ['192.0.0.0', 32, 1]}    -> {policy_id: ['IP ADDR', MASK, LRU, table_entry]} 
+s2_cache = {} # {2: ['192.0.0.0', 32, 1]}    -> {policy_id: ['IP ADDR', MASK, LRU, table_entry]} 
+s3_cache = {} # {2: ['192.0.0.0', 32, 1]}    -> {policy_id: ['IP ADDR', MASK, LRU, table_entry]}
+
+s1_threshold = {}  # {1: 0}  -> { policy_id: threshold } 
+s2_threshold = {}  # {1: 0}  -> { policy_id: threshold } 
+s3_threshold = {}  # {1: 0}  -> { policy_id: threshold } 
+
+###########################################################################################
 
 """ P4RUNTIME FUNCTIONS """
 
@@ -86,43 +99,145 @@ def writeRule(p4info_helper, src_sw, dst_ip_addr, mask=32,
     print 'Added a new rule - %s/%d -> %s' % (dst_ip_addr, mask, action)
     return table_entry # for deletion
 
-def readTableRules(p4info_helper, sw):
-    print '\n----- Reading tables rules for %s -----' % sw.name
-    """
-    Reads the table entries from all tables on the switch.
-    :param p4info_helper: the P4Info helper
-    :param sw: the switch connection
-    """
-    for response in sw.ReadTableEntries():
-        for entity in response.entities:
-            entry = entity.table_entry
-            table_name = p4info_helper.get_tables_name(entry.table_id)
-            action = entry.action.action
-            action_name = p4info_helper.get_actions_name(action.action_id)
-            
-            # print 'Table %s; ' % (table_name),
-            for m in entry.match:
-                # print '%s' % p4info_helper.get_match_field_name(table_name, m.field_id),
-                # print address ipv4
-                str_tmp = list((p4info_helper.get_match_field_value(m),)[0][0]) #'\n\x00\x02\x02'
-                for s in str_tmp:
-                    print '%s.' % ord(s),
-            print
-
 
 """ CONTROLLER ALGORITHM FUNCTIONS """
 
+# gets two lists of bits and return a common prefix list
+def longestCommonPrefix(strs):
+    """
+    :type strs: List[str]
+    :rtype: str
+    """
+    if len(strs) == 0:
+        return ""
+    current = strs[0]
+    for i in range(1,len(strs)):
+        temp = ""
+        if len(current) == 0:
+            break
+        for j in range(len(strs[i])):
+            if j<len(current) and current[j] == strs[i][j]:
+                temp+=current[j]
+            else:
+                break
+        current = temp
+    return current
+
+#change from "192.168.22.1" to "10010111.10000111.00001010.11111111"
+def to_binary(ip):
+    return ''.join([bin(int(x)+256)[3:] for x in ip.split('.')])
+
+# gets address as str and return the rule if exists or false otherwise
+def get_rule(wanted_addr = None):
+    wanted_addr   = to_binary(wanted_addr)
+    # search for rule in policy:
+    for pol in rules.keys():
+        addr = rules[pol][0] # { policy_id: ['IP ADDR', MASK, threshold] }
+        mask = rules[pol][1] # { policy_id: ['IP ADDR', MASK, threshold] }
+        policy_Addr = to_binary(addr)
+        numOfEqaulBits = len(longestCommonPrefix([wanted_addr, policy_Addr]))
+        if (numOfEqaulBits >= mask): 
+            return pol       # return [policy_id, 'IP ADDR', MASK]
+    return -1
+
+# what is done when receiving a packet
+def handle_pkt(pkt):
+    # global vars
+    global s1, s2, s3
+    global s1_cache, s2_cache, s3_cache
+    global s1_threshold, s2_threshold, s3_threshold
+    global rules
+
+    # parse packet 
+    source_host_ip      = pkt[IP].src # recognize the switch src
+    lookup_ip_request   = pkt[IP].dst # the request for an unknown destination
+    sys.stdout.flush()
+
+    # choose switch to handle
+    if source_host_ip == "10.0.1.1":
+        switch = s1
+        switch_name = "s1"
+        switch_cache = s1_cache
+        switch_threshold = s1_threshold
+    if source_host_ip == "10.0.2.2":
+        switch = s2
+        switch_name = "s2"
+        switch_cache = s2_cache
+        switch_threshold = s2_threshold
+    if source_host_ip == "10.0.3.3":
+        switch = s3
+        switch_name = "s3"
+        switch_cache = s3_cache
+        switch_threshold = s3_threshold
+
+    # check if the address metch our rules
+    controller_answer = get_rule(lookup_ip_request)
+    if controller_answer != -1: 
+        print("here %s" % switch_name)
 
 
-""" SNIFFING NETWORK FUNCTIONS """
+        # parse answer
+        address   = rules[controller_answer][0]                 # get rule address
+        mask      = rules[controller_answer][1]                 # get rule mask
+        threshold = switch_threshold.get(controller_answer, 0)  # get rule treshold
+
+        # check if rule got enough threshold counts
+        if threshold > THRESHOLD:
+            print("Received a new requenst above threshold: Writing rule to cache to %s." % switch_name)
+
+            if controller_answer not in switch_cache.keys():
+            # check if already in switch cache
+
+                if len(switch_cache) < CACHE_SIZE:
+                # cache is not full yet - just write:
+
+                    ### write to switch ###
+                    table_entry = writeRule(p4info_helper, src_sw=switch, dst_ip_addr=address, mask=mask, action="MyIngress.drop")
+
+                    # update all LRU
+                    for k in switch_cache.keys():
+                        cache[k] = [cache[k][0], cache[k][1], cache[k][2]+1, table_entry]
+                    # insert new rule
+                    cache[controller_answer] = [address, mask, 1, table_entry]
+
+                else:
+                # cache is not full yet - delete LRU then write
+                    for k in switch_cache.keys():
+                        if switch_cache[k][2] >= CACHE_SIZE:
+
+                            # delete old rule and inser new rule
+                            switch.DeleteTableEntry(switch_cache[controller_answer][3])
+                            table_entry = writeRule(p4info_helper, switch, address, mask=mask, action="MyIngress.drop")
+
+                            # this is the LRU - evict rule
+                            switch_cache.pop(k, None)
+                            # insert new rule
+                            switch_cache[controller_answer] = [address, mask, 1, table_entry]
 
 
+                        else:
+                            switch_cache[k] = [switch_cache[k][0], switch_cache[k][1], switch_cache[k][2] + 1, switch_cache[k][3]]
+           
+            # reset threshold
+            switch_threshold[controller_answer] = 0
+
+        else:
+            # update threshold
+            switch_threshold[controller_answer] = threshold + 1
+
+
+
+###########################################################################################
 
 """MAIN"""
 
 if __name__ == '__main__':
 
     print "Starting Controller Program"
+    print("Cache size is %d." % CACHE_SIZE )
+    print("Threshold size is %d." % THRESHOLD )
+
+    ######################## P4runtime definitions  ##############
 
     ## Retriving information about the envirunment:
     bmv2_file_path, p4info_helper = p4runtime_init()
@@ -178,71 +293,59 @@ if __name__ == '__main__':
         
         print 'Installed default route for unknown address to be sent to h1 (inside controller)' 
         
-
-        ############ START LISTENING ############
-
-        # listen to packets incoming ...
-        # ifaces = filter(lambda i: 'eth' in i, os.listdir('/sys/class/net/'))
-        # print ifaces
-
-
-        iface = 's0-eth4'
-        print "Sniffing on %s - ready." % iface
-        sys.stdout.flush()
-
-        # for every packet comming in we handle_pkt --- stuck here untill ctrl + c (listening...)
-        while True:
-            # please notice - can only handle one packet at a time... may miss some packets in overloads...
-            sniff(count = 1, iface = iface, prn = lambda x: x.show2())
-        # if user press ctrl + z -> exit
-        print("\nController Program Terminated.")  
-        exit(0)
-
-
-
-
-
-
-        """
-        # read from file
-        tmp = f.read()
-        if tmp:
-            # if read somthing new - split to rule format
-            rules_ = tmp.split('\n')
-            for rule in rules_:
-                if rule:
-                    print(rule)
-                    # parse rule "['W', '192.10.10.25', 32]"
-                    action = rule[2] # either 'W' 'D'
-                    address = rule[7:19] # '192.10.10.25'
-                    mask = int(rule[22:24]) # 32
-                     MAKE ACTION 
-                    if (action == 'W') and ((address, mask) not in rules_keeper.keys()):
-                        # write rule to switch
-                        print("Write rule to switch")
-                        # write rule
-                        table_entry = writeStaticRule(p4info_helper, s2, address, mask=mask, action="MyIngress.drop")
-                        # add to local tracking of rules
-                        rules_keeper[(address, mask)] = table_entry
-                    elif action == 'D':
-                        # delete rule from switch
-                        print("Delete rule from switch")
-                        # get the table entry and remove it
-                        table_entry = rules_keeper.get((address, mask))
-                        rules_keeper.pop((address, mask))
-                        # delete rule
-                        s2.DeleteTableEntry(table_entry)
-                    # readTableRules(p4info_helper, s2)
-        sleep(0.1) # not to jem the hole VM - todo
-        """
-            
-
-
-
-
-
     ## ending the program
     except KeyboardInterrupt:
-        print " Shutting down."
+        print "Shutting down."
+
+
+    ######################## READ POLICY  ########################
+    
+    # upload the policy to our ptogram
+    try:
+        # load the csv file to local list
+        name_csv = sys.argv[1]
+    except:
+        name_csv = "policy.csv"
+
+    with open(name_csv) as csvfile:
+        policies_csv = csv.reader(csvfile, quotechar='|')
+        i=0
+        for policy in policies_csv:
+            try:
+                rules[i] = [policy[0], (int)(policy[1]), 0] # initiate treshold to 0
+                i += 1
+            except:
+                pass
+            # policy[0] -> policy address
+            # policy[1] -> policy mask
+    print("Successfully uploaded %d rules for traffic." % len(rules))
+    
+
+
+    ######################## START LISTENING #####################
+
+    iface = 's0-eth4'
+    print "Sniffing on %s - ready." % iface
+    sys.stdout.flush()
+
+    # for every packet comming in we handle_pkt --- stuck here untill ctrl + c (listening...)
+    packet_counter = 0
+    # while True: TODO restore
+    cntr = 0
+    while cntr < 10 :       
+        cntr += 1
+        # sniffing
+        sniff(count = 1, iface = iface, prn = lambda x: handle_pkt(x))
+        packet_counter += 1
+
+
+        # print values every 50 packets incoming
+        if (packet_counter % 50) == 0:
+            print("****************")
+            print("Packet counter received in the controller = %d:" % packet_counter)
+            # todo
+            print("****************")
+
+    print("\nController Program Terminated.")  
     # close the connection
     ShutdownAllSwitchConnections()   
