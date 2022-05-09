@@ -63,8 +63,6 @@ class CacheSwitch:
         self.helper_device_id = helper_device_id
         self.helper_obj = self.initiate_hit_counter_switch()
 
-
-
     def initiate_bmv2_switch(self):
         ## Set initial definition the the smart switches
         obj = p4runtime_lib.bmv2.Bmv2SwitchConnection(
@@ -79,7 +77,6 @@ class CacheSwitch:
         print("Connected %s to controller." % self.name_str)
         return obj
 
-
     def initiate_hit_counter_switch(self):
         ## Set initial definition the the smart switches
         obj = p4runtime_lib.bmv2.Bmv2SwitchConnection(
@@ -93,6 +90,47 @@ class CacheSwitch:
         obj.SetForwardingPipelineConfig(p4info=p4info_helper.p4info, bmv2_json_file_path=bmv2_file_path)
         print("Connected %s helper (%s) to controller." % (self.name_str, self.helper_name_str))
         return obj
+
+    def insert_rule(self, dst_ip_addr, mask, sw_exit_port):
+        table_entry = p4info_helper.buildTableEntry(
+            table_name="MyIngress.ipv4_lpm",
+            match_fields={
+                "hdr.ipv4.dstAddr": (dst_ip_addr, mask)
+            },
+            action_name="MyIngress.ipv4_forward",
+            action_params={
+                "dstAddr": "08:00:00:00:00:00",
+                "port": sw_exit_port
+            })
+        self.obj.WriteTableEntry(table_entry)
+        print 'Added a new rule in %s:  %s / %d.' % (self.name_str, dst_ip_addr, mask)
+
+        # XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX
+        # TODO BUG
+        return table_entry # for deletion
+
+
+
+    def read_tables(self):
+        print('----- Reading tables rules for %s -----' % self.name_str)
+        for response in self.obj.ReadTableEntries():
+            for entity in response.entities:
+                entry = entity.table_entry
+                table_name = p4info_helper.get_tables_name(entry.table_id)
+                action = entry.action.action
+                action_name = p4info_helper.get_actions_name(action.action_id)
+                
+                # print 'Table %s; ' % (table_name),
+                for m in entry.match:
+                    # print '%s' % p4info_helper.get_match_field_name(table_name, m.field_id),
+                    # print address ipv4
+                    str_tmp = list((p4info_helper.get_match_field_value(m),)[0][0]) #'\n\x00\x02\x02'
+                    for s in str_tmp:
+                        print '%s.' % ord(s),
+                    print(' / %d' % list((p4info_helper.get_match_field_value(m),)[0])[1])
+                print
+        print('--------------------------------------')
+
 
 ######################################################################################################################################## Functions
 
@@ -121,58 +159,6 @@ def p4runtime_init():
     p4info_helper = p4runtime_lib.helper.P4InfoHelper(args.p4info)   
     # return values
     return bmv2_file_path, p4info_helper
-
-def writeRule(p4info_helper, src_sw, dst_ip_addr, mask=32, 
-    action="MyIngress.ipv4_forward", dst_host_eth_addr="08:00:00:00:01:11", sw_exit_post=1):
-
-    if action == "MyIngress.ipv4_forward":
-        table_entry = p4info_helper.buildTableEntry(
-            table_name="MyIngress.ipv4_lpm",
-            match_fields={
-                "hdr.ipv4.dstAddr": (dst_ip_addr, mask)
-            },
-            action_name="MyIngress.ipv4_forward",
-            action_params={
-                "dstAddr": dst_host_eth_addr,
-                "port": sw_exit_post
-            })
-
-    if action == "MyIngress.drop":
-        table_entry = p4info_helper.buildTableEntry(
-            table_name="MyIngress.ipv4_lpm",
-            match_fields={
-                "hdr.ipv4.dstAddr": (dst_ip_addr, mask)
-            },
-            action_name="MyIngress.drop",
-            action_params={
-            }) 
-
-    src_sw.WriteTableEntry(table_entry)
-    print 'Added a new rule in - %s/%d -> %s' % (dst_ip_addr, mask, action)
-    return table_entry # for deletion
-
-def readTableRules(p4info_helper, sw):
-    print '\n----- Reading tables rules for %s -----' % sw.name
-    """
-    Reads the table entries from all tables on the switch.
-    :param p4info_helper: the P4Info helper
-    :param sw: the switch connection
-    """
-    for response in sw.ReadTableEntries():
-        for entity in response.entities:
-            entry = entity.table_entry
-            table_name = p4info_helper.get_tables_name(entry.table_id)
-            action = entry.action.action
-            action_name = p4info_helper.get_actions_name(action.action_id)
-            
-            # print 'Table %s; ' % (table_name),
-            for m in entry.match:
-                # print '%s' % p4info_helper.get_match_field_name(table_name, m.field_id),
-                # print address ipv4
-                str_tmp = list((p4info_helper.get_match_field_value(m),)[0][0]) #'\n\x00\x02\x02'
-                for s in str_tmp:
-                    print '%s.' % ord(s),
-            print
 
 """ CONTROLLER ALGORITHM FUNCTIONS """
 
@@ -324,8 +310,6 @@ def handle_pkt(pkt):
 
 if __name__ == '__main__':
 
-
-
     print("\n********************************************")
     print("Starting Controller Program")
     print("Cache size is %d." % CACHE_SIZE )
@@ -341,7 +325,7 @@ if __name__ == '__main__':
         i = 0
         for policy in policies_csv:
             try:
-                policy_rules[i] = [policy[0], (int)(policy[1])] # initiate treshold to 0
+                policy_rules[i] = [policy[0], (int)(policy[1])] # { policy_id: ['IP ADDR', MASK] } 
                 i += 1
             except:
                 pass
@@ -356,21 +340,40 @@ if __name__ == '__main__':
     bmv2_file_path, p4info_helper = p4runtime_init()
     print("Uploaded p4-runtime system parameters.")
 
-
     ## connect to switches s1-s6
+    s1 = CacheSwitch(name= 's1', localhost_port= 50052, device_id=1, helper_localhost_port=50058, helper_device_id=7)
+    s2 = CacheSwitch(name= 's2', localhost_port= 50053, device_id=2, helper_localhost_port=50059, helper_device_id=8)
+    s3 = CacheSwitch(name= 's3', localhost_port= 50054, device_id=3, helper_localhost_port=50060, helper_device_id=9)
+    s4 = CacheSwitch(name= 's4', localhost_port= 50055, device_id=4, helper_localhost_port=50061, helper_device_id=10)
+    s5 = CacheSwitch(name= 's5', localhost_port= 50056, device_id=5, helper_localhost_port=50062, helper_device_id=11)
+    s6 = CacheSwitch(name= 's6', localhost_port= 50057, device_id=6, helper_localhost_port=50063, helper_device_id=12)
 
-    # TODO SHIR
-
-    #s1 = CacheSwitch(name= 's1', localhost_port= 50052, device_id=1, helper_localhost_port=50053, helper_device_id=2)
-    
-    print("Finished connecting to switches in the topology.")
+    print("Connected to all switches in the topology.")
     print("********************************************")
 
     ################################################################################################################ Insert basic forwarding rules
 
-    # TODO SHIR
+    ## TOR switches
+    # s1 to s4 and s5
+    s1.insert_rule(dst_ip_addr="192.0.0.0",   mask=12, sw_exit_port=3)
+    s1.insert_rule(dst_ip_addr="192.240.0.0", mask=12, sw_exit_port=4)
+    # s2 to s4 and s5
+    s2.insert_rule(dst_ip_addr="192.0.0.0",   mask=12, sw_exit_port=3)
+    s2.insert_rule(dst_ip_addr="192.240.0.0", mask=12, sw_exit_port=4)
+    # s3 to s4 and s5
+    s3.insert_rule(dst_ip_addr="192.0.0.0",   mask=12, sw_exit_port=3)
+    s3.insert_rule(dst_ip_addr="192.240.0.0", mask=12, sw_exit_port=4)
+
+    ## Aggregation switches
+    # s4 to s6
+    s4.insert_rule(dst_ip_addr="192.0.0.0",   mask=8, sw_exit_port=5)
+    # s5 to s6
+    s5.insert_rule(dst_ip_addr="192.0.0.0",   mask=8, sw_exit_port=5)
+    # s6 to s0-controller
+    s6.insert_rule(dst_ip_addr="192.0.0.0",   mask=8, sw_exit_port=1)
 
 
+    
 
     print("Inserted basic forwarding rules to switches.")
     print("********************************************")
@@ -390,9 +393,9 @@ if __name__ == '__main__':
      
     print("Starting listening to port-1 on controller - incoming requests...")
 
+    try:
 
-    while True:  
-        try:
+        while True:  
 
             # sniffing
             sniff(count = 1, iface = iface, prn = lambda x: handle_pkt(x))
@@ -410,16 +413,14 @@ if __name__ == '__main__':
                 # todo add all data to print
                 
 
-
                 print("********************************************")
 
-        ################################################################################################################ Ending main
+    ################################################################################################################ Ending main
 
-        except KeyboardInterrupt:
-            print("\nController Program Terminated.")  
-            # close the connection
-            ShutdownAllSwitchConnections()
-
+    except KeyboardInterrupt:
+        print("\nController Program Terminated.")  
+        # close the connection
+        ShutdownAllSwitchConnections()
 
 
 
@@ -442,6 +443,5 @@ writeRule(p4info_helper, s1, "192.0.0.0", mask=8, action="MyIngress.ipv4_forward
 ## ending the program
 except KeyboardInterrupt:
 print "Shutting down."
-
 
 """
