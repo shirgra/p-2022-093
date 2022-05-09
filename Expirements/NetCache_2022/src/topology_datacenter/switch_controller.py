@@ -1,5 +1,7 @@
 #!/usr/bin/env python2
 
+######################################################################################################################################## Imports
+
 import argparse
 import grpc
 import os
@@ -25,24 +27,74 @@ logging.getLogger("scapy.runtime").setLevel(logging.ERROR)
 from scapy.all import *
 from scapy.layers.inet import _IPOption_HDR
 
-###########################################################################################
+######################################################################################################################################## Global Varriables
 
-THRESHOLD = 2
+THRESHOLD_MISS = 2
+THRESHOLD_HIT = 2
 CACHE_SIZE = 8
+policy_csv_path = "policy.csv"
 
-# global variables
+policy_rules = {}  #  {1: ['192.0.0.0', 32]}  -> { policy_id: ['IP ADDR', MASK] } 
 
-rules = {}    # {1: ['192.0.0.0', 32]}  -> { policy_id: ['IP ADDR', MASK] } 
 
-s1_cache = {} # {2: ['192.0.0.0', 32, 1]}    -> {policy_id: ['IP ADDR', MASK, LRU, table_entry]} 
-s2_cache = {} # {2: ['192.0.0.0', 32, 1]}    -> {policy_id: ['IP ADDR', MASK, LRU, table_entry]} 
-s3_cache = {} # {2: ['192.0.0.0', 32, 1]}    -> {policy_id: ['IP ADDR', MASK, LRU, table_entry]}
+######################################################################################################################################## Class CacheSwitch
 
-s1_threshold = {}  # {1: 0}  -> { policy_id: threshold } 
-s2_threshold = {}  # {1: 0}  -> { policy_id: threshold } 
-s3_threshold = {}  # {1: 0}  -> { policy_id: threshold } 
+class CacheSwitch:
+    def __init__(self, name, localhost_port, device_id, helper_localhost_port, helper_device_id):
+        self.name_str = name
 
-###########################################################################################
+        # topology properties
+        self.localhost_port = localhost_port
+        self.address =  '127.0.0.1:' + str(localhost_port)
+        self.device_id = device_id
+
+        # cache properties
+        self.cache = {}
+        self.threshold_miss = 0
+        self.threshold_miss = 0
+
+        # initiate bmv2
+        self.obj = self.initiate_bmv2_switch()
+
+        # hit counter switch
+        self.helper_name_str = name + '0'
+        self.helper_localhost_port = helper_localhost_port
+        self.helper_address =  '127.0.0.1:' + str(helper_localhost_port)
+        self.helper_device_id = helper_device_id
+        self.helper_obj = self.initiate_hit_counter_switch()
+
+
+
+    def initiate_bmv2_switch(self):
+        ## Set initial definition the the smart switches
+        obj = p4runtime_lib.bmv2.Bmv2SwitchConnection(
+            name=self.name_str,
+            address=self.address,
+            device_id=self.device_id,
+            proto_dump_file='logs/' + self.name_str + '-p4runtime-requests.txt')         
+        # Send master arbitration update message to establish this controller as
+        obj.MasterArbitrationUpdate()
+        # Install the P4 program on the switches
+        obj.SetForwardingPipelineConfig(p4info=p4info_helper.p4info, bmv2_json_file_path=bmv2_file_path)
+        print("Connected %s to controller." % self.name_str)
+        return obj
+
+
+    def initiate_hit_counter_switch(self):
+        ## Set initial definition the the smart switches
+        obj = p4runtime_lib.bmv2.Bmv2SwitchConnection(
+            name=self.helper_name_str,
+            address=self.helper_address,
+            device_id=self.helper_device_id,
+            proto_dump_file='logs/' + self.helper_name_str + '-p4runtime-requests.txt')         
+        # Send master arbitration update message to establish this controller as
+        obj.MasterArbitrationUpdate()
+        # Install the P4 program on the switches
+        obj.SetForwardingPipelineConfig(p4info=p4info_helper.p4info, bmv2_json_file_path=bmv2_file_path)
+        print("Connected %s helper (%s) to controller." % (self.name_str, self.helper_name_str))
+        return obj
+
+######################################################################################################################################## Functions
 
 """ P4RUNTIME FUNCTIONS """
 
@@ -164,6 +216,10 @@ def get_rule(wanted_addr = None):
 
 # what is done when receiving a packet
 def handle_pkt(pkt):
+
+    pkt.show()
+
+    """
     # global vars
     global s1, s2, s3
     global s1_cache, s2_cache, s3_cache
@@ -229,10 +285,11 @@ def handle_pkt(pkt):
                             # delete old rule and inser new rule
                             print("Deleting rule and writing new rule in %s." % switch_name)
 
-                            """readTableRules(p4info_helper, switch)
+                            readTableRules(p4info_helper, switch)
                             print("\n %s" % str(switch_cache[k][3][0]))
                             switch.DeleteTableEntry(switch_cache[k][3][0])
-                            readTableRules(p4info_helper, switch)"""
+                            readTableRules(p4info_helper, switch)
+
                             try:
                                 table_entry = writeRule(p4info_helper, src_sw=switch, dst_ip_addr=address, mask=mask, action="MyIngress.drop")
 
@@ -259,184 +316,132 @@ def handle_pkt(pkt):
             # update threshold
             switch_threshold[controller_answer] = threshold + 1
 
+    """
 
-
-###########################################################################################
+######################################################################################################################################## MAIN
 
 """MAIN"""
 
 if __name__ == '__main__':
 
-    # listen to packets incoming ...
-    ifaces = filter(lambda i: 'eth' in i, os.listdir('/sys/class/net/'))
-    print ifaces
-    
-    sys.stdout.flush()
 
-    print "Starting Controller Program"
+
+    print("\n********************************************")
+    print("Starting Controller Program")
     print("Cache size is %d." % CACHE_SIZE )
-    print("Threshold size is %d." % THRESHOLD )
+    print("Threshold HIT size is %d." % THRESHOLD_HIT )
+    print("Threshold MISS size is %d." % THRESHOLD_MISS )
+    print("Policy is read from file: %s." % policy_csv_path )
+    print("********************************************")
 
-    ######################## P4runtime definitions  ##############
+    ################################################################################################################ load policy rules
 
-    ## Retriving information about the envirunment:
-    bmv2_file_path, p4info_helper = p4runtime_init()
-    print "Uploaded p4-runtime system parameters"
-
-
-    """ POC 08-05-2022 
-    s0 = p4runtime_lib.bmv2.Bmv2SwitchConnection(
-            name='s0',
-            address='127.0.0.1:50051',
-            device_id=0,
-            proto_dump_file='logs/s0-p4runtime-requests.txt') # TODO configuration file
-
-    # Send master arbitration update message to establish this controller as
-    s0.MasterArbitrationUpdate()
-    # Install the P4 program on the switches
-    s0.SetForwardingPipelineConfig(p4info=p4info_helper.p4info, bmv2_json_file_path=bmv2_file_path)
-    writeRule(p4info_helper, s0, "192.0.0.0", mask=8, action="MyIngress.drop", dst_host_eth_addr="08:00:00:00:00:00", sw_exit_post=4)
-
-
-    """
-
-
-    ## Set initial definition the the smart switches
-    try:
-        # acordding to current topology:
-        s1 = p4runtime_lib.bmv2.Bmv2SwitchConnection(
-            name='s1',
-            address='127.0.0.1:50052',
-            device_id=1,
-            proto_dump_file='logs/s1-p4runtime-requests.txt') # TODO configuration file
-        s2 = p4runtime_lib.bmv2.Bmv2SwitchConnection(
-            name='s2',
-            address='127.0.0.1:50053',
-            device_id=2,
-            proto_dump_file='logs/s2-p4runtime-requests.txt')
-        s3 = p4runtime_lib.bmv2.Bmv2SwitchConnection(
-            name='s3',
-            address='127.0.0.1:50054',
-            device_id=3,
-            proto_dump_file='logs/s3-p4runtime-requests.txt')
-
-        for s in [s1, s2, s3]:
-            # Send master arbitration update message to establish this controller as
-            s.MasterArbitrationUpdate()
-            # Install the P4 program on the switches
-            s.SetForwardingPipelineConfig(p4info=p4info_helper.p4info, bmv2_json_file_path=bmv2_file_path)
-      
-        print "Installed P4 Program using SetForwardingPipelineConfig on all switches."
-
-        # s1 basic rules
-        writeRule(p4info_helper, s1, "10.0.1.1", mask=32, action="MyIngress.ipv4_forward", dst_host_eth_addr="08:00:00:00:01:11", sw_exit_post=1)
-        writeRule(p4info_helper, s1, "10.0.2.2", mask=32, action="MyIngress.ipv4_forward", dst_host_eth_addr="08:00:00:00:02:00", sw_exit_post=2)
-        writeRule(p4info_helper, s1, "10.0.3.3", mask=32, action="MyIngress.ipv4_forward", dst_host_eth_addr="08:00:00:00:03:00", sw_exit_post=3)
-        # s2 basic rules
-        writeRule(p4info_helper, s2, "10.0.1.1", mask=32, action="MyIngress.ipv4_forward", dst_host_eth_addr="08:00:00:00:01:00", sw_exit_post=2)
-        writeRule(p4info_helper, s2, "10.0.2.2", mask=32, action="MyIngress.ipv4_forward", dst_host_eth_addr="08:00:00:00:02:22", sw_exit_post=1)
-        writeRule(p4info_helper, s2, "10.0.3.3", mask=32, action="MyIngress.ipv4_forward", dst_host_eth_addr="08:00:00:00:03:00", sw_exit_post=3)
-        # s3 basic rules
-        writeRule(p4info_helper, s3, "10.0.1.1", mask=32, action="MyIngress.ipv4_forward", dst_host_eth_addr="08:00:00:00:01:00", sw_exit_post=3)
-        writeRule(p4info_helper, s3, "10.0.2.2", mask=32, action="MyIngress.ipv4_forward", dst_host_eth_addr="08:00:00:00:02:00", sw_exit_post=2)
-        writeRule(p4info_helper, s3, "10.0.3.3", mask=32, action="MyIngress.ipv4_forward", dst_host_eth_addr="08:00:00:00:03:33", sw_exit_post=1)
-        
-        print 'Instlled Basic rules to forward packets normally to hosts in the topology.'
-        
-        # install default rules - all unknown addresses goto h1
-        writeRule(p4info_helper, s1, "192.0.0.0", mask=8, action="MyIngress.ipv4_forward", dst_host_eth_addr="08:00:00:00:00:00", sw_exit_post=4)
-        writeRule(p4info_helper, s2, "192.0.0.0", mask=8, action="MyIngress.ipv4_forward", dst_host_eth_addr="08:00:00:00:00:00", sw_exit_post=4)
-        writeRule(p4info_helper, s3, "192.0.0.0", mask=8, action="MyIngress.ipv4_forward", dst_host_eth_addr="08:00:00:00:00:00", sw_exit_post=4)
-        
-        print 'Installed default route for unknown address to be sent to s0' 
-        
-    ## ending the program
-    except KeyboardInterrupt:
-        print "Shutting down."
-
-
-    ######################## READ POLICY  ########################
-    
-    # upload the policy to our ptogram
-    try:
-        # load the csv file to local list
-        name_csv = sys.argv[1]
-    except:
-        name_csv = "policy.csv"
-
-    with open(name_csv) as csvfile:
+    with open(policy_csv_path) as csvfile:
         policies_csv = csv.reader(csvfile, quotechar='|')
-        i=0
+        i = 0
         for policy in policies_csv:
             try:
-                rules[i] = [policy[0], (int)(policy[1]), 0] # initiate treshold to 0
+                policy_rules[i] = [policy[0], (int)(policy[1])] # initiate treshold to 0
                 i += 1
             except:
                 pass
             # policy[0] -> policy address
             # policy[1] -> policy mask
-    print("Successfully uploaded %d rules for traffic." % len(rules))
+    print("Successfully uploaded %d rules for traffic." % len(policy_rules))
+    print("********************************************")
+
+    ################################################################################################################ Connect Switches to controller - p4runtime
+
+    ## Retriving information about the envirunment:
+    bmv2_file_path, p4info_helper = p4runtime_init()
+    print("Uploaded p4-runtime system parameters.")
+
+
+    ## connect to switches s1-s6
+
+    # TODO SHIR
+
+    #s1 = CacheSwitch(name= 's1', localhost_port= 50052, device_id=1, helper_localhost_port=50053, helper_device_id=2)
     
+    print("Finished connecting to switches in the topology.")
+    print("********************************************")
+
+    ################################################################################################################ Insert basic forwarding rules
+
+    # TODO SHIR
 
 
-    ######################## START LISTENING #####################
 
-    iface = 's0-eth4'
-    print "Sniffing on %s - ready." % iface
-    sys.stdout.flush()
+    print("Inserted basic forwarding rules to switches.")
+    print("********************************************")
+
+    ################################################################################################################ Open threads - listen to hit counts and act on it
+
+    ### ANNA TODO
 
 
-    """
-    readTableRules(p4info_helper, s2)
-    t = writeRule(p4info_helper, src_sw=s2, dst_ip_addr="192.10.10.10", mask=32, action="MyIngress.drop")
-    readTableRules(p4info_helper, s2)    
+    print("Opened threads for listening to hit-count.")
+    print("********************************************")
     
-    for response in s2.ReadTableEntries():
-        #print(response, "\n")
+    ################################################################################################################ Listen to s0-p1 incomint messages to controller
 
-        for entity in response.entities:
-            print(entity)
-            print("------------")
-            entry = entity.table_entry
-            print(entity)
-            print("------------")
-            # TODO For extra credit, you can use the p4info_helper to translate
-            #      the IDs in the entry to names
-            #table_name = p4info_helper.get_tables_name(entry.table_id)
-            #print('%s: ' % table_name, end=' ')
-            #for m in entry.match:
-                #print(p4info_helper.get_match_field_name(table_name, m.field_id), end=' ')
-                #print('%r' % (p4info_helper.get_match_field_value(m),), end=' ')
-            #action = entry.action.action
-            #action_name = p4info_helper.get_actions_name(action.action_id)
-            #print('->', action_name, end=' ')
-            #for p in action.params:
-                #print(p4info_helper.get_action_param_name(action_name, p.param_id), end=' ')
-                #print('%r' % p.value, end=' ')
-            #print()
-
-    #deleteRule(p4info_helper, src_sw=s2, dst_ip_addr="192.10.10.20", mask=32, action="MyIngress.drop")
-    #s2.DeleteTableEntry(t.table_entry)
-    readTableRules(p4info_helper, s2)
-    """
-
-
-
-    # for every packet comming in we handle_pkt --- stuck here untill ctrl + c (listening...)
+    iface = 's0-eth1'
     packet_counter = 0
+     
+    print("Starting listening to port-1 on controller - incoming requests...")
+
+
     while True:  
-        # sniffing
-        sniff(count = 1, iface = iface, prn = lambda x: handle_pkt(x))
-        packet_counter += 1
+        try:
+
+            # sniffing
+            sniff(count = 1, iface = iface, prn = lambda x: handle_pkt(x))
+            sys.stdout.flush()
+
+            # packet counter
+            packet_counter += 1
+
+            # print values every 50 packets incoming
+            if (packet_counter % 50) == 0:
+                print("********************************************")
+
+                print("Packet counter received in the controller = %d:" % packet_counter)
+                
+                # todo add all data to print
+                
 
 
-        # print values every 50 packets incoming
-        if (packet_counter % 50) == 0:
-            print("****************")
-            print("Packet counter received in the controller = %d:" % packet_counter)
-            # todo
-            print("****************")
+                print("********************************************")
 
-    print("\nController Program Terminated.")  
-    # close the connection
-    ShutdownAllSwitchConnections()   
+        ################################################################################################################ Ending main
+
+        except KeyboardInterrupt:
+            print("\nController Program Terminated.")  
+            # close the connection
+            ShutdownAllSwitchConnections()
+
+
+
+
+
+
+
+
+""" Command bank:
+
+# listen to packets incoming ...
+ifaces = filter(lambda i: 'eth' in i, os.listdir('/sys/class/net/'))
+print ifaces
+sys.stdout.flush()
+
+# s1 basic rules
+writeRule(p4info_helper, s1, "10.0.3.3", mask=32, action="MyIngress.ipv4_forward", dst_host_eth_addr="08:00:00:00:03:00", sw_exit_post=3)
+# install default rules - all unknown addresses goto h1
+writeRule(p4info_helper, s1, "192.0.0.0", mask=8, action="MyIngress.ipv4_forward", dst_host_eth_addr="08:00:00:00:00:00", sw_exit_post=4)
+
+## ending the program
+except KeyboardInterrupt:
+print "Shutting down."
+
+
+"""
