@@ -34,7 +34,8 @@ THRESHOLD_HIT = 2
 CACHE_SIZE = 8
 policy_csv_path = "policy.csv"
 
-policy_rules = {}  #  {1: ['192.0.0.0', 32]}  -> { policy_id: ['IP ADDR', MASK] } 
+policy_rules = {}                   # { policy_id: ['IP ADDR', MASK] } 
+controller_threshold_miss = {}      # { policy_id: [th counter] }
 
 
 ######################################################################################################################################## Class CacheSwitch
@@ -42,20 +43,14 @@ policy_rules = {}  #  {1: ['192.0.0.0', 32]}  -> { policy_id: ['IP ADDR', MASK] 
 class CacheSwitch:
     def __init__(self, name, localhost_port, device_id, helper_localhost_port, helper_device_id):
         self.name_str = name
-
         # topology properties
         self.localhost_port = localhost_port
         self.address =  '127.0.0.1:' + str(localhost_port)
         self.device_id = device_id
-
-        # cache properties
-        self.cache = {}
-        self.threshold_miss = 0
-        self.threshold_miss = 0
-
-        # initiate bmv2
         self.obj = self.initiate_bmv2_switch()
-
+        # cache properties
+        self.cache = {}             # { policy_id: [LRU flag] } 
+        self.threshold_hit  = {}    # { policy_id: [th counter] } 
         # hit counter switch
         self.helper_name_str = name + '0'
         self.helper_localhost_port = helper_localhost_port
@@ -109,7 +104,43 @@ class CacheSwitch:
         # TODO BUG
         return table_entry # for deletion
 
+    def check_and_insert_rule_to_cache(self, rule_id, wanted_sw_exit_port):
 
+        # get rule to insert
+        global policy_rules
+        address   = policy_rules[rule_id][0]                 # get rule address
+        mask      = policy_rules[rule_id][1]                 # get rule mask
+
+        # make sure rule is not in switch cache
+        if rule_id in self.cache.keys():
+            return False
+
+        if len(self.cache) < CACHE_SIZE:
+            # if we have enough room for rule:
+
+            # update LRU
+            for i in self.cache.keys():
+                self.cache[i] = self.cache[i] + 1
+            self.cache[rule_id] = 1
+
+        else:
+            # if cache is full -> evict LRU rule
+
+            # update LRU and get rule we want to delete
+            for i in self.cache.keys():
+                if self.cache[i] >= CACHE_SIZE:
+                    rule_to_del = i
+                else:
+                    self.cache[i] = self.cache[i] + 1
+            self.cache.pop(rule_to_del, None) # delete LRU rule
+            self.cache[rule_id] = 1           # new rule
+
+            # delete LRU rule
+            # rule_to_del
+            # TODO bug - delete rule!!!!!!!
+        
+        # insert new rule
+        self.insert_rule(dst_ip_addr=address, mask=mask, sw_exit_port=wanted_sw_exit_port)
 
     def read_tables(self):
         print('----- Reading tables rules for %s -----' % self.name_str)
@@ -130,7 +161,6 @@ class CacheSwitch:
                     print(' / %d' % list((p4info_helper.get_match_field_value(m),)[0])[1])
                 print
         print('--------------------------------------')
-
 
 ######################################################################################################################################## Functions
 
@@ -162,147 +192,61 @@ def p4runtime_init():
 
 """ CONTROLLER ALGORITHM FUNCTIONS """
 
-# gets two lists of bits and return a common prefix list
-def longestCommonPrefix(strs):
-    """
-    :type strs: List[str]
-    :rtype: str
-    """
-    if len(strs) == 0:
-        return ""
-    current = strs[0]
-    for i in range(1,len(strs)):
-        temp = ""
-        if len(current) == 0:
-            break
-        for j in range(len(strs[i])):
-            if j<len(current) and current[j] == strs[i][j]:
-                temp+=current[j]
-            else:
-                break
-        current = temp
-    return current
+# gets two lists of ipv4 addresses (str) and return the number of bits prefix match (int)
+def longestCommonPrefix(addr_1, addr_2):
+    # convert to binary - from "192.168.22.1" to "10010111.10000111.00001010.11111111"
+    addr_1 = str(''.join([bin(int(x)+256)[3:] for x in addr_1.split('.')]))
+    addr_2 = str(''.join([bin(int(x)+256)[3:] for x in addr_2.split('.')]))
 
-#change from "192.168.22.1" to "10010111.10000111.00001010.11111111"
-def to_binary(ip):
-    return ''.join([bin(int(x)+256)[3:] for x in ip.split('.')])
+    # get the longest string of bits in the addresses
+    res = 0
+    for i in range(32):
+        if addr_1[i] == addr_2[i]:
+            res += 1
+        else:
+            return res
+    return res
 
 # gets address as str and return the rule if exists or false otherwise
-def get_rule(wanted_addr = None):
-    wanted_addr   = to_binary(wanted_addr)
+def get_rule(wanted_addr):
+    global policy_rules
     # search for rule in policy:
-    for pol in rules.keys():
-        addr = rules[pol][0] # { policy_id: ['IP ADDR', MASK, threshold] }
-        mask = rules[pol][1] # { policy_id: ['IP ADDR', MASK, threshold] }
-        policy_Addr = to_binary(addr)
-        numOfEqaulBits = len(longestCommonPrefix([wanted_addr, policy_Addr]))
-        if (numOfEqaulBits >= mask): 
-            return pol       # return [policy_id, 'IP ADDR', MASK]
-    return -1
+    for pol in policy_rules.keys():
+        addr = policy_rules[pol][0] # { policy_id: ['IP ADDR', MASK] }
+        mask = policy_rules[pol][1] # { policy_id: ['IP ADDR', MASK] }
+        if (longestCommonPrefix(wanted_addr, addr) >= mask): 
+            return pol       # return policy_id
+    # if rule not found
+    return False
 
 # what is done when receiving a packet
-def handle_pkt(pkt):
+def handle_pkt_controller(pkt):
 
-    pkt.show()
-
-    """
-    # global vars
-    global s1, s2, s3
-    global s1_cache, s2_cache, s3_cache
-    global s1_threshold, s2_threshold, s3_threshold
-    global rules
+    global controller_threshold_miss, s6
 
     # parse packet 
-    source_host_ip      = pkt[IP].src # recognize the switch src
     lookup_ip_request   = pkt[IP].dst # the request for an unknown destination
     sys.stdout.flush()
 
-    # choose switch to handle
-    if source_host_ip == "10.0.1.1":
-        switch = s1
-        switch_name = "s1"
-        switch_cache = s1_cache
-        switch_threshold = s1_threshold
-    if source_host_ip == "10.0.2.2":
-        switch = s2
-        switch_name = "s2"
-        switch_cache = s2_cache
-        switch_threshold = s2_threshold
-    if source_host_ip == "10.0.3.3":
-        switch = s3
-        switch_name = "s3"
-        switch_cache = s3_cache
-        switch_threshold = s3_threshold
-
     # check if the address metch our rules
-    controller_answer = get_rule(lookup_ip_request)
-    if controller_answer != -1: 
+    rule_id = get_rule(lookup_ip_request)
 
-        # parse answer
-        address   = rules[controller_answer][0]                 # get rule address
-        mask      = rules[controller_answer][1]                 # get rule mask
-        threshold = switch_threshold.get(controller_answer, 0)  # get rule treshold
+    if rule_id:
 
-        # check if rule got enough threshold counts
-        if threshold > THRESHOLD:
+        # update threshold miss count
+        try:
+            controller_threshold_miss[rule_id] += 1
+        except:
+            controller_threshold_miss[rule_id]  = 1
 
-            if controller_answer not in switch_cache.keys():
-            # check if already in switch cache
+        # if we crossed the miss threshold for this rule
+        if controller_threshold_miss[rule_id] >= THRESHOLD_MISS:
 
-                if len(switch_cache) < CACHE_SIZE:
-                # cache is not full yet - just write:
+            # insert rule to switch s6 cache
+            s6.check_and_insert_rule_to_cache(rule_id=rule_id, wanted_sw_exit_port=4)
 
-                    ### write to switch ###
-                    print("Writing rule in %s." % switch_name)
-                    table_entry = writeRule(p4info_helper, src_sw=switch, dst_ip_addr=address, mask=mask, action="MyIngress.drop")
-
-                    # update all LRU
-                    for k in switch_cache.keys():
-                        switch_cache[k] = [switch_cache[k][0], switch_cache[k][1], switch_cache[k][2]+1, table_entry]
-                    # insert new rule
-                    switch_cache[controller_answer] = [address, mask, 1, table_entry]
-
-                else:
-                # cache is not full yet - delete LRU then write
-                    for k in switch_cache.keys():
-
-                        if switch_cache[k][2] >= CACHE_SIZE:
-
-                            # delete old rule and inser new rule
-                            print("Deleting rule and writing new rule in %s." % switch_name)
-
-                            readTableRules(p4info_helper, switch)
-                            print("\n %s" % str(switch_cache[k][3][0]))
-                            switch.DeleteTableEntry(switch_cache[k][3][0])
-                            readTableRules(p4info_helper, switch)
-
-                            try:
-                                table_entry = writeRule(p4info_helper, src_sw=switch, dst_ip_addr=address, mask=mask, action="MyIngress.drop")
-
-                                # this is the LRU - evict rule
-                                switch_cache.pop(k, None)
-                                # insert new rule
-                                switch_cache[controller_answer] = [address, mask, 1, table_entry]
-                            except:
-                                # this is the LRU - evict rule
-                                switch_cache.pop(k, None)
-                                # insert new rule
-                                switch_cache[controller_answer] = [address, mask, 1, None]
-                                print("IN BUG - line 248 write rule ")
-
-
-
-                        else:
-                            switch_cache[k] = [switch_cache[k][0], switch_cache[k][1], switch_cache[k][2] + 1, switch_cache[k][3]]
-           
-            # reset threshold
-            switch_threshold[controller_answer] = 0
-
-        else:
-            # update threshold
-            switch_threshold[controller_answer] = threshold + 1
-
-    """
+            # reset threshold count
+            controller_threshold_miss[rule_id]  = 0
 
 ######################################################################################################################################## MAIN
 
@@ -322,7 +266,7 @@ if __name__ == '__main__':
 
     with open(policy_csv_path) as csvfile:
         policies_csv = csv.reader(csvfile, quotechar='|')
-        i = 0
+        i = 1
         for policy in policies_csv:
             try:
                 policy_rules[i] = [policy[0], (int)(policy[1])] # { policy_id: ['IP ADDR', MASK] } 
@@ -372,9 +316,6 @@ if __name__ == '__main__':
     # s6 to s0-controller
     s6.insert_rule(dst_ip_addr="192.0.0.0",   mask=8, sw_exit_port=1)
 
-
-    
-
     print("Inserted basic forwarding rules to switches.")
     print("********************************************")
 
@@ -393,34 +334,30 @@ if __name__ == '__main__':
      
     print("Starting listening to port-1 on controller - incoming requests...")
 
-    try:
+    roof = 0
+    while roof < 100 :  
+        roof +=1
 
-        while True:  
+        # sniffing
+        sniff(count = 1, iface = iface, prn = lambda x: handle_pkt_controller(x))
+        sys.stdout.flush()
 
-            # sniffing
-            sniff(count = 1, iface = iface, prn = lambda x: handle_pkt(x))
-            sys.stdout.flush()
+        # packet counter
+        packet_counter += 1
 
-            # packet counter
-            packet_counter += 1
-
-            # print values every 50 packets incoming
-            if (packet_counter % 50) == 0:
-                print("********************************************")
-
-                print("Packet counter received in the controller = %d:" % packet_counter)
-                
-                # todo add all data to print
-                
-
-                print("********************************************")
-
+        # print values every 50 packets incoming
+        if (packet_counter % 20) == 0:
+            print("********************************************")
+            print("Packet counter received in the controller = %d:" % packet_counter)
+            for s in [s1, s2, s3, s4, s5, s6]:
+                print("In %s: cache size now is: -%d-, and total -%d- hit counts in switch cache." % (s.name_str, len(s.cache), sum(s.threshold_hit.values())))            
+            print("********************************************")
+        
     ################################################################################################################ Ending main
 
-    except KeyboardInterrupt:
-        print("\nController Program Terminated.")  
-        # close the connection
-        ShutdownAllSwitchConnections()
+    print("\nController Program Terminated.")  
+    # close the connection
+    ShutdownAllSwitchConnections()
 
 
 
