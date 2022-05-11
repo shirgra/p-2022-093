@@ -352,16 +352,13 @@ def handle_hit_pkt(pkt,switch):
 
 
 # listen to the "hits" 
-def thread_for_switch(switch):
+def thread_for_switch(switch, iface):
 
-    ifaces = ['s1-eth2','s2-eth2','s3-eth2','s4-eth4','s5-eth4','s6-eth4']
-    iface = ifaces[switch.device_id-1]
-    #ifaces = filter(lambda i: 'eth' in i, os.listdir('/sys/class/net/'))
-    #print "Sniffing on %s - ready." % iface
-    #sys.stdout.flush()
-
+    print("In thread - listener (helper) for switch - %s" % switch.name_str())
+    
+    # listen to traffic
     while True:
-        sniff(count = 1, iface = iface, prn = lambda x: handle_hit_pkt(x,switch))
+        sniff(count = 1, iface = iface, prn = lambda x: x.show())
         break
 
 
@@ -437,21 +434,22 @@ if __name__ == '__main__':
     print("********************************************")
 
     ################################################################################################################ Open threads - listen to hit counts and act on it
-
+    
     ### ANNA TODO
     # opening new 6 threads
-    idNum1 = threading.Thread(target=thread_for_switch, args=(s1,))
+    idNum1 = threading.Thread(target=thread_for_switch, args=(s1, iface='s1-eth2'))
     idNum1.start()
-    idNum2 = threading.Thread(target=thread_for_switch, args=(s2,))
+    idNum2 = threading.Thread(target=thread_for_switch, args=(s2, iface='s2-eth2'))
     idNum2.start()
-    idNum3 = threading.Thread(target=thread_for_switch, args=(s3,))
+    idNum3 = threading.Thread(target=thread_for_switch, args=(s3, iface='s3-eth2'))
     idNum3.start()
-    idNum4 = threading.Thread(target=thread_for_switch, args=(s4,))
+    idNum4 = threading.Thread(target=thread_for_switch, args=(s4, iface='s4-eth4'))
     idNum4.start()
-    idNum5 = threading.Thread(target=thread_for_switch, args=(s5,))
+    idNum5 = threading.Thread(target=thread_for_switch, args=(s5, iface='s5-eth4'))
     idNum5.start()
-    idNum6 = threading.Thread(target=thread_for_switch, args=(s6,))
+    idNum6 = threading.Thread(target=thread_for_switch, args=(s6, iface='s6-eth4'))
     idNum6.start()
+
 
     print("Opened threads for listening to hit-count.")
     print("********************************************")
@@ -464,7 +462,7 @@ if __name__ == '__main__':
     print("Starting listening to port-1 on controller - incoming requests...")
 
     roof = 0
-    while roof < 100 :  
+    while roof < 0 :  
         roof +=1
 
         # sniffing

@@ -11,6 +11,7 @@ import socket
 import random
 import struct
 import csv
+import threading    
 from time import sleep
 from tqdm import tqdm
 
@@ -100,7 +101,6 @@ class CacheSwitch:
         self.obj.WriteTableEntry(table_entry)
         print 'Added a new rule in %s:  %s / %d.' % (self.name_str, dst_ip_addr, mask)
 
-        # XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX
         # TODO BUG
         return table_entry # for deletion
 
@@ -248,6 +248,147 @@ def handle_pkt_controller(pkt):
             # reset threshold count
             controller_threshold_miss[rule_id]  = 0
 
+""" LISTENING TO SWITCHES FUNCTIONS (THREADS) """
+
+def thread_TOR_switch(switch, iface):
+
+    global policy_rules, s1, s2, s3
+
+    print("Started thread function - listener (helper) for switch - %s." % switch.name_str)
+
+    # all TOR switches has 3 sons - h1 h2 h3
+    hit_counts = { 's1': {}, 's2': {}, 's3': {} }
+
+    def handle_pkt(pkt):
+
+        # parse packet 
+        lookup_ip_request   = pkt[IP].dst # the request for an unknown destination
+        source_ip_address   = pkt[IP].src # the request source ipv4 address
+        sys.stdout.flush()
+
+        # check if the address metch our rules - ip source
+        rule_id = get_rule(lookup_ip_request)
+
+        if   source_ip_address == '10.0.1.1':
+            sw = s1
+        elif source_ip_address == '10.0.2.2':
+            sw = s2
+        elif source_ip_address == '10.0.3.3':
+            sw = s3
+
+        # update counter
+        try:
+            hit_counts[sw.name_str] += 1
+        except:
+            hit_counts[sw.name_str]  = 1
+
+    
+    # listen to traffic
+    while True:
+        sniff(count = 1, iface = iface, prn = lambda pkt: handle_pkt(pkt))
+        sys.stdout.flush()
+
+def thread_low_aggrigation_switches(switch, iface):
+
+    global policy_rules, s1, s2, s3
+
+    print("Started thread function - listener (helper) for switch - %s." % switch.name_str)
+
+    # all TOR switches has 3 sons - h1 h2 h3
+    hit_counts = { 's1': {}, 's2': {}, 's3': {} }
+
+    def handle_pkt(pkt):
+
+        # parse packet 
+        lookup_ip_request   = pkt[IP].dst # the request for an unknown destination
+        source_ip_address   = pkt[IP].src # the request source ipv4 address
+        sys.stdout.flush()
+
+        # check if the address metch our rules - ip source
+        rule_id = get_rule(lookup_ip_request)
+
+        if   source_ip_address == '10.0.1.1':
+            sw = s1
+        elif source_ip_address == '10.0.2.2':
+            sw = s2
+        elif source_ip_address == '10.0.3.3':
+            sw = s3
+
+        # update counter
+        try:
+            hit_counts[sw.name_str] += 1
+        except:
+            hit_counts[sw.name_str]  = 1
+
+        # if we crossed the miss threshold for this rule
+        if hit_counts[sw.name_str] >= THRESHOLD_HIT:
+
+            # insert rule to switch s6 cache
+            sw.check_and_insert_rule_to_cache(rule_id=rule_id, wanted_sw_exit_port=2) # 2 listener (HIT)
+
+            # TODO BUG
+            # delete rule from switch
+
+            # reset threshold count
+            hit_counts.pop(sw.name_str, None)
+    
+    # listen to traffic
+    while True:
+        sniff(count = 1, iface = iface, prn = lambda pkt: handle_pkt(pkt))
+        sys.stdout.flush()
+    
+def thread_high_aggrigation_switches(switch, iface):
+
+    global policy_rules, s4, s5
+
+    # s60 listening
+    # 192  .0.0.0/12 GOTO s4
+    # 192.240.0.0/12 GOTO s5
+
+    print("Started thread function - listener (helper) for switch - %s." % switch.name_str)
+
+    # all high_aggrigation switches has 3 sons - h4 h5
+    hit_counts = { 's4': {}, 's5': {}}
+
+    # keep record according to destIP address range
+    def handle_pkt(pkt):
+
+        # parse packet 
+        lookup_ip_request   = pkt[IP].dst # the request for an unknown destination
+        sys.stdout.flush()
+
+        # check if the address metch our rules
+        rule_id = get_rule(lookup_ip_request)
+
+        if longestCommonPrefix(lookup_ip_request, '192.240.0.0') >= 12:
+            sw = s5
+        else:
+            sw = s4
+
+        # update counter
+        try:
+            hit_counts[sw.name_str] += 1
+        except:
+            hit_counts[sw.name_str]  = 1
+
+        # if we crossed the miss threshold for this rule
+        if hit_counts[sw.name_str] >= THRESHOLD_HIT:
+
+            # insert rule to switch s6 cache
+            sw.check_and_insert_rule_to_cache(rule_id=rule_id, wanted_sw_exit_port=4) # 4 listener (HIT)
+
+            # TODO BUG
+            # delete rule from switch
+
+            # reset threshold count
+            hit_counts.pop(sw.name_str, None)
+    
+    # listen to traffic
+    while True:
+        sniff(count = 1, iface = iface, prn = lambda pkt: handle_pkt(pkt))
+        sys.stdout.flush()
+
+
 ######################################################################################################################################## MAIN
 
 """MAIN"""
@@ -273,8 +414,7 @@ if __name__ == '__main__':
                 i += 1
             except:
                 pass
-            # policy[0] -> policy address
-            # policy[1] -> policy mask
+
     print("Successfully uploaded %d rules for traffic." % len(policy_rules))
     print("********************************************")
 
@@ -323,6 +463,18 @@ if __name__ == '__main__':
 
     ### ANNA TODO
 
+    # opening new 6 threads
+    idNum1 = threading.Thread(target=thread_TOR_switch, args=(s1, 's1-eth2'))
+    idNum2 = threading.Thread(target=thread_TOR_switch, args=(s2, 's2-eth2'))
+    idNum3 = threading.Thread(target=thread_TOR_switch, args=(s3, 's3-eth2'))
+    idNum4 = threading.Thread(target=thread_low_aggrigation_switches, args=(s4, 's4-eth4'))
+    idNum5 = threading.Thread(target=thread_low_aggrigation_switches, args=(s5, 's5-eth4'))
+    idNum6 = threading.Thread(target=thread_high_aggrigation_switches, args=(s6, 's6-eth4'))
+
+    # starting threads
+    for idNum in [idNum1, idNum2, idNum3, idNum4, idNum5, idNum6]:
+        idNum.start()
+    sleep(2)
 
     print("Opened threads for listening to hit-count.")
     print("********************************************")
@@ -335,7 +487,7 @@ if __name__ == '__main__':
     print("Starting listening to port-1 on controller - incoming requests...")
 
     roof = 0
-    while roof < 100 :  
+    while roof < 1000 :  
         roof +=1
 
         # sniffing
@@ -355,30 +507,9 @@ if __name__ == '__main__':
         
     ################################################################################################################ Ending main
 
-    print("\nController Program Terminated.")  
     # close the connection
     ShutdownAllSwitchConnections()
-
-
-
-
-
-
-
-""" Command bank:
-
-# listen to packets incoming ...
-ifaces = filter(lambda i: 'eth' in i, os.listdir('/sys/class/net/'))
-print ifaces
-sys.stdout.flush()
-
-# s1 basic rules
-writeRule(p4info_helper, s1, "10.0.3.3", mask=32, action="MyIngress.ipv4_forward", dst_host_eth_addr="08:00:00:00:03:00", sw_exit_post=3)
-# install default rules - all unknown addresses goto h1
-writeRule(p4info_helper, s1, "192.0.0.0", mask=8, action="MyIngress.ipv4_forward", dst_host_eth_addr="08:00:00:00:00:00", sw_exit_post=4)
-
-## ending the program
-except KeyboardInterrupt:
-print "Shutting down."
-
-"""
+    # finish threads
+    for idNum in [idNum1, idNum2, idNum3, idNum4, idNum5, idNum6]:
+        idNum.join()
+    print("\nController Program Terminated.")  
