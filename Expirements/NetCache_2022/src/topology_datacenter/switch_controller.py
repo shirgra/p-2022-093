@@ -395,6 +395,14 @@ def thread_high_aggrigation_switches(switch, iface):
 
 if __name__ == '__main__':
 
+    global CACHE_SIZE, THRESHOLD_HIT
+    try:
+        CACHE_SIZE = sys.argv[1]
+        THRESHOLD_HIT = sys.argv[2]
+    except:
+        pass
+
+
     print("\n********************************************")
     print("Starting Controller Program")
     print("Cache size is %d." % CACHE_SIZE )
@@ -407,16 +415,19 @@ if __name__ == '__main__':
 
     with open(policy_csv_path) as csvfile:
         policies_csv = csv.reader(csvfile, quotechar='|')
-        i = 1
         for policy in policies_csv:
             try:
-                policy_rules[i] = [policy[0], (int)(policy[1])] # { policy_id: ['IP ADDR', MASK] } 
-                i += 1
+                policy_rules[policy[0]] = policy[1] # { policy_id: ['IP ADDR', MASK] } 
             except:
                 pass
 
+    print(policy_rules)
+
+
     print("Successfully uploaded %d rules for traffic." % len(policy_rules))
     print("********************************************")
+
+    exit(1)
 
     ################################################################################################################ Connect Switches to controller - p4runtime
 
