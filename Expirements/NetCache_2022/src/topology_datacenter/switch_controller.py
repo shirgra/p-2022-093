@@ -302,7 +302,7 @@ def thread_TOR_switch(switch, iface):
             hit_counts[sw.name_str][rule_id]  = 1
 
         # write data to file [switch,timestemp,'hit']
-        write_hits_to_file(str([sw.name_str,lookup_ip_request, time.time() - start_thread ,"hit"]),name_file)
+        write_hits_to_file(str([switch.name_str,lookup_ip_request, time.time() - start_thread ,"hit"]),name_file)
         # update records in switch
         try:
             sw.threshold_hit[rule_id] += 1
@@ -381,7 +381,7 @@ def thread_low_aggrigation_switches(switch, iface):
             hit_counts[sw.name_str][rule_id][1]  = start_time = time.time()
 
         # write data to file [switch,destination ,timestemp,'hit']
-        write_hits_to_file(str([sw.name_str,lookup_ip_request, time.time() - start_thread ,"hit"]),name_file)
+        write_hits_to_file(str([switch.name_str,lookup_ip_request, time.time() - start_thread ,"hit"]),name_file)
         # update records in switch
         try:
             sw.threshold_hit[rule_id] += 1
@@ -442,7 +442,7 @@ def thread_high_aggrigation_switches(switch, iface):
         interval_time = time.time() - hit_counts[sw.name_str][rule_id][1]
 
         # if we crossed the miss threshold for this rule
-        if hit_counts[sw.name_str][rule_id] >= THRESHOLD_HIT_CONTROLLER and interval_time < TIME_OUT:
+        if hit_counts[sw.name_str][rule_id][0] >= THRESHOLD_HIT_CONTROLLER and interval_time < TIME_OUT:
 
             # insert rule to switch s6 cache
             sw.check_and_insert_rule_to_cache(rule_id=rule_id, wanted_sw_exit_port=4) # 4 listener (HIT)
@@ -459,7 +459,7 @@ def thread_high_aggrigation_switches(switch, iface):
             hit_counts[sw.name_str][rule_id][1]  = start_time = time.time()
     
         # write data to file [switch,destination ,timestemp,'hit']
-        write_hits_to_file(str([sw.name_str,lookup_ip_request, time.time() - start_thread ,"hit"]),name_file)
+        write_hits_to_file(str([switch.name_str,lookup_ip_request, time.time() - start_thread ,"hit"]),name_file)
         # update records in switch
         try:
             sw.threshold_hit[rule_id] += 1
@@ -584,6 +584,7 @@ if __name__ == '__main__':
 
     while True:
         if time.time() - time_tmp > 10:
+            time_tmp = time.time()
             # print values every 10 seconds
             print("********************************************")
             print("Packet counter received in the controller = %d:" % packet_counter)

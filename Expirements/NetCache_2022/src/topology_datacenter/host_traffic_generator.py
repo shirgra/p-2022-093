@@ -7,7 +7,6 @@ import socket
 import random
 import csv
 import time
-from tqdm import tqdm
 from time import sleep
 
 # scapy 
@@ -115,23 +114,45 @@ if __name__ == '__main__':
     sml = md = lrg = 0
     loops_per_sec = 0
 
+    l = m = s = 0
+
+    small_bank = flow_small.values()
+    med_bank   = flow_medium.values()
+    large_bank = flow_large.values()
+
+
     # running the host program
     print("Sending traffic...")
     while sent_counter < MAX_PACKETS_SENT:
         loops_per_sec += 1
 
-        # large flows - 40 pps
-        sent_counter += send_packet(dst_ip = "192.0.1.10")
+        # large flows - 40 pps - 10 addresses
+        try:
+            sent_counter += send_packet(dst_ip = large_bank[l])
+            l += 1
+        except:
+            sent_counter += send_packet(dst_ip = large_bank[0])
+            l = 0
         lrg += 1
 
-        # medium flows - 20 pps
+        # medium flows - 20 pps - 20 addresses
         if lrg % 2:
-            sent_counter += send_packet(dst_ip = "192.0.10.10")
+            try:
+                sent_counter += send_packet(dst_ip = med_bank[m])
+                m += 1
+            except:
+                sent_counter += send_packet(dst_ip = med_bank[0])
+                m = 0
             md += 1
 
-            # small flows - 10 pps
+            # small flows - 10 pps - 10 addresses
             if md % 2:
-                sent_counter += send_packet(dst_ip = "192.240.10.110")
+                try:
+                    sent_counter += send_packet(dst_ip = small_bank[s])
+                    s += 1
+                except:
+                    sent_counter += send_packet(dst_ip = small_bank[0])
+                    s = 0
                 sml += 1
 
         # seconds timer handler            
@@ -140,6 +161,8 @@ if __name__ == '__main__':
             # reset timer
             time_start = time.time()
             loops_per_sec = 0
+
+            sml = md = lrg = 0
 
     # finish main
     print("Successfully transsmitted %d packets." % (sent_counter))
