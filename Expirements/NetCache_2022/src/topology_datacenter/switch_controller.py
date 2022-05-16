@@ -39,13 +39,14 @@ policy_csv_path = "../tests_dependencies/policy.csv"
 
 # Expiriment 1:
 
-THRESHOLD_HIT_AGG = 10
-THRESHOLD_HIT_CONTROLLER = 10
-CACHE_SIZE = 15
-TIME_OUT = 3
-
+THRESHOLD_HIT_AGG = 15
+THRESHOLD_HIT_CONTROLLER = 20
+CACHE_SIZE_TOR = 15
+CACHE_SIZE_AGG = 15
+TIME_OUT = 30
 path_to_expiriment = "../../results/Expiriment1/"
 
+"""
 # Expiriment 2:
 THRESHOLD_HIT_AGG = 1
 THRESHOLD_HIT_CONTROLLER = 1
@@ -53,6 +54,7 @@ CACHE_SIZE_TOR = 20
 CACHE_SIZE_AGG = 40
 TIME_OUT = 3
 path_to_expiriment = "../../results/Expiriment2/"
+"""
 
 policy_rules = {}                   # { policy_id: ['IP ADDR', MASK] } 
 controller_miss_record = {}
