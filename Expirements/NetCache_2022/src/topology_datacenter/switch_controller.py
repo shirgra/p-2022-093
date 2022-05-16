@@ -33,10 +33,10 @@ from scapy.layers.inet import _IPOption_HDR
 THRESHOLD_MISS = 2
 THRESHOLD_HIT = 2
 CACHE_SIZE = 8
-policy_csv_path = "policy.csv"
+policy_csv_path = "../tests_dependencies/policy.csv"
 
 policy_rules = {}                   # { policy_id: ['IP ADDR', MASK] } 
-controller_threshold_miss = {}      # { policy_id: [th counter] }
+controller_miss_record = []
 
 
 ######################################################################################################################################## Class CacheSwitch
@@ -108,8 +108,8 @@ class CacheSwitch:
 
         # get rule to insert
         global policy_rules
-        address   = policy_rules[rule_id][0]                 # get rule address
-        mask      = policy_rules[rule_id][1]                 # get rule mask
+        address   = policy_rules[rule_id]                # get rule address
+        mask      = 32
 
         # make sure rule is not in switch cache
         if rule_id in self.cache.keys():
@@ -209,20 +209,19 @@ def longestCommonPrefix(addr_1, addr_2):
 
 # gets address as str and return the rule if exists or false otherwise
 def get_rule(wanted_addr):
-    global policy_rules
     # search for rule in policy:
     for pol in policy_rules.keys():
-        addr = policy_rules[pol][0] # { policy_id: ['IP ADDR', MASK] }
-        mask = policy_rules[pol][1] # { policy_id: ['IP ADDR', MASK] }
-        if (longestCommonPrefix(wanted_addr, addr) >= mask): 
+        addr = policy_rules[pol] 
+        if addr == wanted_addr: 
             return pol       # return policy_id
     # if rule not found
     return False
+    print("THIS IS A BUG - LINE 219")
 
 # what is done when receiving a packet
 def handle_pkt_controller(pkt):
 
-    global controller_threshold_miss, s6
+    global controller_miss_record, s6
 
     # parse packet 
     lookup_ip_request   = pkt[IP].dst # the request for an unknown destination
@@ -235,24 +234,18 @@ def handle_pkt_controller(pkt):
 
         # update threshold miss count
         try:
-            controller_threshold_miss[rule_id] += 1
+            controller_miss_record[rule_id] += 1
         except:
-            controller_threshold_miss[rule_id]  = 1
+            controller_miss_record[rule_id]  = 1
 
-        # if we crossed the miss threshold for this rule
-        if controller_threshold_miss[rule_id] >= THRESHOLD_MISS:
-
-            # insert rule to switch s6 cache
-            s6.check_and_insert_rule_to_cache(rule_id=rule_id, wanted_sw_exit_port=4)
-
-            # reset threshold count
-            controller_threshold_miss[rule_id]  = 0
+        # insert rule to switch s6 cache
+        s6.check_and_insert_rule_to_cache(rule_id=rule_id, wanted_sw_exit_port=4)
 
 """ LISTENING TO SWITCHES FUNCTIONS (THREADS) """
 
 def thread_TOR_switch(switch, iface):
 
-    global policy_rules, s1, s2, s3
+    global s1, s2, s3
 
     print("Started thread function - listener (helper) for switch - %s." % switch.name_str)
 
@@ -290,7 +283,7 @@ def thread_TOR_switch(switch, iface):
 
 def thread_low_aggrigation_switches(switch, iface):
 
-    global policy_rules, s1, s2, s3
+    global s1, s2, s3
 
     print("Started thread function - listener (helper) for switch - %s." % switch.name_str)
 
@@ -339,7 +332,7 @@ def thread_low_aggrigation_switches(switch, iface):
     
 def thread_high_aggrigation_switches(switch, iface):
 
-    global policy_rules, s4, s5
+    global s4, s5
 
     # s60 listening
     # 192  .0.0.0/12 GOTO s4
@@ -402,12 +395,10 @@ if __name__ == '__main__':
     except:
         pass
 
-
     print("\n********************************************")
     print("Starting Controller Program")
     print("Cache size is %d." % CACHE_SIZE )
     print("Threshold HIT size is %d." % THRESHOLD_HIT )
-    print("Threshold MISS size is %d." % THRESHOLD_MISS )
     print("Policy is read from file: %s." % policy_csv_path )
     print("********************************************")
 
@@ -416,13 +407,8 @@ if __name__ == '__main__':
     with open(policy_csv_path) as csvfile:
         policies_csv = csv.reader(csvfile, quotechar='|')
         for policy in policies_csv:
-            try:
-                policy_rules[policy[0]] = policy[1] # { policy_id: ['IP ADDR', MASK] } 
-            except:
-                pass
-
-    print(policy_rules)
-
+            policy_rules[policy[0]] = policy[1] # { policy_id: ['IP ADDR', MASK] } 
+        policy_rules.pop("", None)
 
     print("Successfully uploaded %d rules for traffic." % len(policy_rules))
     print("********************************************")
