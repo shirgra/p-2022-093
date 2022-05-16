@@ -13,7 +13,6 @@ import struct
 import csv
 import threading    
 from time import sleep
-from tqdm import tqdm
 
 # Import P4Runtime lib from parent utils dir Probably there's a better way of doing this.
 sys.path.append(os.path.join(os.path.dirname(os.path.abspath(__file__)),'../../utils/'))
@@ -30,13 +29,15 @@ from scapy.layers.inet import _IPOption_HDR
 
 ######################################################################################################################################## Global Varriables
 
-THRESHOLD_MISS = 2
-THRESHOLD_HIT = 2
+THRESHOLD_HIT_AGG = 2
+THRESHOLD_HIT_CONTROLLER = 2
 CACHE_SIZE = 8
+TIME_OUT = 3
 policy_csv_path = "../tests_dependencies/policy.csv"
+path_to_expiriment = "../../results/Expiriment1"
 
 policy_rules = {}                   # { policy_id: ['IP ADDR', MASK] } 
-controller_miss_record = {}
+controller_miss_record = []
 
 
 ######################################################################################################################################## Class CacheSwitch
@@ -243,6 +244,13 @@ def handle_pkt_controller(pkt):
 
 """ LISTENING TO SWITCHES FUNCTIONS (THREADS) """
 
+
+def write_hits_to_file(data , file):
+    hits_file = open(file, 'a')
+    hits_file.write(data)
+    hits_file.write("\n")
+
+
 def thread_TOR_switch(switch, iface):
 
     global s1, s2, s3
@@ -252,6 +260,20 @@ def thread_TOR_switch(switch, iface):
     # all TOR switches has 3 sons - h1 h2 h3
     hit_counts = { 's1': {}, 's2': {}, 's3': {} }
 
+    # open file to every switch
+    if switch == s1:
+        name_file = path_to_expiriment + 's1_hit_count.txt'
+        s1_hits = open(name_file, 'w')
+    elif switch == s2:
+        name_file = path_to_expiriment + 's2_hit_count.txt'
+        s2_hits = open(name_file, 'w')
+    else:
+        name_file = path_to_expiriment + 's3_hit_count.txt'
+        s3_hits = open(name_file, 'w')
+
+    # start time for every switch to hits file
+    start_thread = time.time() 
+
     def handle_pkt(pkt):
 
         # parse packet 
@@ -271,10 +293,12 @@ def thread_TOR_switch(switch, iface):
 
         # update counter
         try:
-            hit_counts[sw.name_str] += 1
+            hit_counts[sw.name_str[rule_id]] += 1
         except:
-            hit_counts[sw.name_str]  = 1
+            hit_counts[sw.name_str[rule_id]]  = 1
 
+        # write data to file [switch,timestemp,'hit']
+        write_hits_to_file(str(sw.name_str, time.time() - start_thread ,"hit"),name_file)
     
     # listen to traffic
     while True:
@@ -283,12 +307,23 @@ def thread_TOR_switch(switch, iface):
 
 def thread_low_aggrigation_switches(switch, iface):
 
-    global s1, s2, s3
+    global s1, s2, s3 , interval_time
 
     print("Started thread function - listener (helper) for switch - %s." % switch.name_str)
 
-    # all TOR switches has 3 sons - h1 h2 h3
+    # all AGG switches has 3 sons - h1 h2 h3
     hit_counts = { 's1': {}, 's2': {}, 's3': {} }
+
+    # open hit file to every switch
+    if switch == s4:
+        name_file = path_to_expiriment + 's4_hit_count.txt'
+        s4_hits = open(name_file, 'w')
+    else:
+        name_file = path_to_expiriment + 's5_hit_count.txt'
+        s5_hits = open(name_file, 'w')
+
+    # start time for every switch to hits file
+    start_thread = time.time()
 
     def handle_pkt(pkt):
 
@@ -309,12 +344,16 @@ def thread_low_aggrigation_switches(switch, iface):
 
         # update counter
         try:
-            hit_counts[sw.name_str] += 1
+            hit_counts[sw.name_str[rule_id][0]] += 1
         except:
-            hit_counts[sw.name_str]  = 1
+            start_time = time.time()
+            hit_counts[sw.name_str[rule_id]]  = [1, start_time]
+
+        #stop clock to check if timeout
+        interval_time = time.time() - hit_counts[sw.name_str[rule_id][1]]
 
         # if we crossed the miss threshold for this rule
-        if hit_counts[sw.name_str] >= THRESHOLD_HIT:
+        if hit_counts[sw.name_str[rule_id][0]] >= THRESHOLD_HIT_AGG and interval_time < TIME_OUT:
 
             # insert rule to switch s6 cache
             sw.check_and_insert_rule_to_cache(rule_id=rule_id, wanted_sw_exit_port=2) # 2 listener (HIT)
@@ -323,7 +362,16 @@ def thread_low_aggrigation_switches(switch, iface):
             # delete rule from switch
 
             # reset threshold count
-            hit_counts.pop(sw.name_str, None)
+            hit_counts.pop(sw.name_str[rule_id], None)
+
+        # reset the all varibles and start counting again
+        elif interval_time >= TIME_OUT:
+            hit_counts[sw.name_str[rule_id][0]]  = 1
+            hit_counts[sw.name_str[rule_id][1]]  = start_time = time.time()
+
+        # write data to file [switch,timestemp,'hit']
+        write_hits_to_file(str([sw.name_str, time.time() - start_thread ,"hit"]),name_file)
+
     
     # listen to traffic
     while True:
@@ -340,8 +388,15 @@ def thread_high_aggrigation_switches(switch, iface):
 
     print("Started thread function - listener (helper) for switch - %s." % switch.name_str)
 
-    # all high_aggrigation switches has 3 sons - h4 h5
+    # all high_aggrigation switches has 2 sons - h4 h5
     hit_counts = { 's4': {}, 's5': {}}
+
+    # open hit file to every switch
+    name_file = path_to_expiriment + 's6_hit_count.txt'
+    s6_hits = open(name_file, 'w')
+
+    # start time for every switch to hits file
+    start_thread = time.time()
 
     # keep record according to destIP address range
     def handle_pkt(pkt):
@@ -360,12 +415,16 @@ def thread_high_aggrigation_switches(switch, iface):
 
         # update counter
         try:
-            hit_counts[sw.name_str] += 1
+            hit_counts[sw.name_str[rule_id][0]] += 1
         except:
-            hit_counts[sw.name_str]  = 1
+            start_time = time.time()
+            hit_counts[sw.name_str[rule_id]]  = [1, start_time]
+
+        #stop clock to check if timeout
+        interval_time = time.time() - hit_counts[sw.name_str[rule_id][1]]
 
         # if we crossed the miss threshold for this rule
-        if hit_counts[sw.name_str] >= THRESHOLD_HIT:
+        if hit_counts[sw.name_str[rule_id]] >= THRESHOLD_HIT_CONTROLLER and interval_time < TIME_OUT:
 
             # insert rule to switch s6 cache
             sw.check_and_insert_rule_to_cache(rule_id=rule_id, wanted_sw_exit_port=4) # 4 listener (HIT)
@@ -374,7 +433,15 @@ def thread_high_aggrigation_switches(switch, iface):
             # delete rule from switch
 
             # reset threshold count
-            hit_counts.pop(sw.name_str, None)
+            hit_counts.pop(sw.name_str[rule_id], None)
+
+        # reset the all varibles and start counting again
+        elif interval_time >= TIME_OUT:
+            hit_counts[sw.name_str[rule_id][0]]  = 1
+            hit_counts[sw.name_str[rule_id][1]]  = start_time = time.time()
+    
+        # write data to file [switch,timestemp,'hit']
+        write_hits_to_file(str([sw.name_str, time.time() - start_thread ,"hit"]),name_file)
     
     # listen to traffic
     while True:
@@ -397,7 +464,8 @@ if __name__ == '__main__':
     print("\n********************************************")
     print("Starting Controller Program")
     print("Cache size is %d." % CACHE_SIZE )
-    print("Threshold HIT size is %d." % THRESHOLD_HIT )
+    print("Threshold aggrigation HIT size is %d." % THRESHOLD_HIT_AGG )
+    print("Threshold controller HIT size is %d." % THRESHOLD_HIT_CONTROLLER )
     print("Policy is read from file: %s." % policy_csv_path )
     print("********************************************")
 
@@ -454,8 +522,6 @@ if __name__ == '__main__':
     print("********************************************")
 
     ################################################################################################################ Open threads - listen to hit counts and act on it
-
-    ### ANNA TODO
 
     # opening new 6 threads
     idNum1 = threading.Thread(target=thread_TOR_switch, args=(s1, 's1-eth2'))
