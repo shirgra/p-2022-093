@@ -36,7 +36,7 @@ CACHE_SIZE = 8
 policy_csv_path = "../tests_dependencies/policy.csv"
 
 policy_rules = {}                   # { policy_id: ['IP ADDR', MASK] } 
-controller_miss_record = []
+controller_miss_record = {}
 
 
 ######################################################################################################################################## Class CacheSwitch
@@ -388,10 +388,9 @@ def thread_high_aggrigation_switches(switch, iface):
 
 if __name__ == '__main__':
 
-    global CACHE_SIZE, THRESHOLD_HIT
     try:
-        CACHE_SIZE = sys.argv[1]
-        THRESHOLD_HIT = sys.argv[2]
+        CACHE_SIZE    = int(sys.argv[1])
+        THRESHOLD_HIT = int(sys.argv[2])
     except:
         pass
 
@@ -412,8 +411,6 @@ if __name__ == '__main__':
 
     print("Successfully uploaded %d rules for traffic." % len(policy_rules))
     print("********************************************")
-
-    exit(1)
 
     ################################################################################################################ Connect Switches to controller - p4runtime
 
@@ -506,6 +503,7 @@ if __name__ == '__main__':
 
     # close the connection
     ShutdownAllSwitchConnections()
+    exit()
     # finish threads
     for idNum in [idNum1, idNum2, idNum3, idNum4, idNum5, idNum6]:
         idNum.join()

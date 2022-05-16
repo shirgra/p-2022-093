@@ -1,25 +1,26 @@
-#!/usr/bin/env python
-import argparse
+#!/usr/bin/env python2
+
+######################################################################################################################################## Imports
+
 import sys
 import socket
 import random
-import struct
-import argparse
-import os
 import csv
+import time
 from tqdm import tqdm
-# scapy logger - this remove IPv6 warning from the terminal prints
+from time import sleep
+
+# scapy 
 import logging
-logging.getLogger("scapy.runtime").setLevel(logging.ERROR)
-# scapy
+logging.getLogger("scapy.runtime").setLevel(logging.ERROR) # - this remove IPv6 warning from the terminal prints
 from scapy.all import *
 from scapy.layers.inet import _IPOption_HDR
-# threads
-import threading
-import time
 
+######################################################################################################################################## Global variables
 
-""" help functions """
+MAX_PACKETS_SENT = 1000
+
+######################################################################################################################################## Functions
 
 # returns eth0 interface for the running host
 def get_if():
@@ -35,73 +36,111 @@ def get_if():
     return iface
 
 # this function sends packets sequence according to a given flow
-def send_packet(flow = None):
-    """
-    this function sends one packet to the outsode world.
-    input:
-        flow: list, e.g. ['1', '192.10.10.15', '8', '19']
-    output:
-        True/False if packet sent to the switch
-    """
-    if not flow:
-        return 0 # fail
-    # parse flow var
-    ip_dst_addr             = socket.gethostbyname(flow[1])
-    no_of_packets_in_flow   = int(flow[2])
-    payload_size            = int(flow[3])
-    # build params for packet
-    #metadata    = "hello world " + str(random.randint(0,15)) # todo hard coded
-    metadata    = "A"*(payload_size)
-    iface       = get_if()
-    src_hw_addr = get_if_hwaddr(iface)
-    dst_hw_addr = 'ff:ff:ff:ff:ff:ff'
-    # build packet
-    pkt =  Ether(src = src_hw_addr, dst = dst_hw_addr) 
-    pkt =  pkt / IP(dst = ip_dst_addr) 
-    pkt =  pkt / TCP(dport=1234, sport=random.randint(49152,65535)) 
-    pkt =  pkt / metadata
-    # sending the pkt
-    for p in range(no_of_packets_in_flow):
+def send_packet(dst_ip = "192.10.10.10"):
+
+    try:
+
+        # parse flow var
+        ip_dst_addr             = socket.gethostbyname(dst_ip)
+
+        # build params for packet
+        metadata    = "A"
+        iface       = get_if()
+        src_hw_addr = get_if_hwaddr(iface)
+        dst_hw_addr = 'ff:ff:ff:ff:ff:ff'
+
+        # build packet
+        pkt =  Ether(src = src_hw_addr, dst = dst_hw_addr) 
+        pkt =  pkt / IP(dst = dst_ip) 
+        pkt =  pkt / TCP(dport=1234, sport=random.randint(49152,65535)) 
+        pkt =  pkt / metadata
+
+        # sending the pkt
         sendp(pkt, iface=iface, verbose=False)
-    #pkt.show2()
-    #print "sending on interface {} to IP addr {}".format(iface, str(addr))
-    return no_of_packets_in_flow
+
+        return 1
+
+    except:
+
+        return 0
+
+######################################################################################################################################## Main
 
 if __name__ == '__main__':
 
-    # initial uploading for traffic flows
-    if len(sys.argv)<2:
-        print('Need to pass a .csv file of traffic flows: ./host_traffic_generator.py expirements_dependencies/flow_tst.csv')
-        exit(1)
-    traffic = [] # this will be a list of lists of flows 
-    try:
-        # load the csv file to local list
-        name_csv = sys.argv[1]
-        no_pkts_total = 0
-        with open(name_csv) as csvfile:
-            flows = csv.reader(csvfile, quotechar='|')
-            for flow in flows:
-                traffic.append(flow)
-                # flow[0] -> flow id
-                # flow[1] -> dst ip addr
-                # flow[2] -> no. of packets
-                # flow[3] -> payload size
-                try:
-                    no_pkts_total = no_pkts_total + (int)(flow[2])
-                except:
-                    pass
-            traffic = traffic[1::] # dont take the headers
-            print("Successfully uploaded %d flows of traffic." % len(traffic))
-    except:
-        print("Failed to upload csv file.")
-        exit(1)
+    # load flows
+    if "Loading flows":
+
+        # initial uploading for traffic flows
+        if len(sys.argv)<2:
+            print('Need to pass a .csv file of traffic flows: ./host_traffic_generator.py ../test_dependencies/flow_1.csv')
+            exit(1)
+
+        flow_small  = {}
+        flow_medium = {}
+        flow_large  = {}
+
+        # read csv
+        try:
+
+            # load the csv file to local list
+            name_csv = sys.argv[1]
+            with open(name_csv) as csvfile:
+
+                rows = csv.reader(csvfile, quotechar='|')
+                for flow in rows:
+
+                    # flow[0] -> flow id
+                    # flow[1] -> type of flow
+                    # flow[2] -> dst ip addr
+
+                    if flow[1] == "Small":
+                        flow_small[flow[0]] = flow[2]
+                    if flow[1] == "Medium":
+                        flow_medium[flow[0]] = flow[2]
+                    if flow[1] == "Large":
+                        flow_large[flow[0]] = flow[2]
+                        
+
+            print("Successfully uploaded %d flows of traffic." % (len(flow_large) + len(flow_medium) + len(flow_small)))
+
+        except:
+
+            print("Failed to upload csv file.")
+            exit(1)
+
+    # start sending process
+    time_start = time.time()
+    sent_counter = 0
+    sml = md = lrg = 0
+    loops_per_sec = 0
 
     # running the host program
     print("Sending traffic...")
-    sent_counter = 0
-    for flow in tqdm(traffic): 
-        sent_counter += send_packet(flow = flow)
+    while sent_counter < MAX_PACKETS_SENT:
+        loops_per_sec += 1
 
-    # done
-    print("Successfully transsmitted %d out of %d packets of traffic." % (sent_counter, no_pkts_total))
+        # large flows - 40 pps
+        sent_counter += send_packet(dst_ip = "192.0.1.10")
+        lrg += 1
+
+        # medium flows - 20 pps
+        if lrg % 2:
+            sent_counter += send_packet(dst_ip = "192.240.10.10")
+            md += 1
+
+            # small flows - 10 pps
+            if md % 2:
+                sent_counter += send_packet(dst_ip = "192.240.10.110")
+                sml += 1
+
+        # seconds timer handler            
+        if time.time() - time_start >= 1:
+            print("Sending rate: %d pps.    Sent %d packets so far.     (%d, %d, %d)" % (loops_per_sec, sent_counter, sml, md, lrg))
+            # reset timer
+            time_start = time.time()
+            loops_per_sec = 0
+
+    # finish main
+    print("Successfully transsmitted %d packets." % (sent_counter))
     print("Traffic Generator Program Ended Sucsessfully.")  
