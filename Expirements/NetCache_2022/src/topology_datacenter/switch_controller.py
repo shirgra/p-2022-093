@@ -219,6 +219,11 @@ def get_rule(wanted_addr):
     return False
     print("THIS IS A BUG - LINE 219")
 
+def write_hits_to_file(data , file):
+    hits_file = open(file, 'a')
+    hits_file.write(data)
+    hits_file.write("\n")
+
 # what is done when receiving a packet
 def handle_pkt_controller(pkt):
 
@@ -231,7 +236,7 @@ def handle_pkt_controller(pkt):
     # check if the address metch our rules
     rule_id = get_rule(lookup_ip_request)
 
-    if rule_id:
+    if rule_id is not False:
 
         # update threshold miss count
         try:
@@ -249,13 +254,6 @@ def handle_pkt_controller(pkt):
 
 
 """ LISTENING TO SWITCHES FUNCTIONS (THREADS) """
-
-
-def write_hits_to_file(data , file):
-    hits_file = open(file, 'a')
-    hits_file.write(data)
-    hits_file.write("\n")
-
 
 def thread_TOR_switch(switch, iface):
 
@@ -306,7 +304,10 @@ def thread_TOR_switch(switch, iface):
         # write data to file [switch,timestemp,'hit']
         write_hits_to_file(str([sw.name_str,lookup_ip_request, time.time() - start_thread ,"hit"]),name_file)
         # update records in switch
-        sw.threshold_hit = hit_counts[sw.name_str]
+        try:
+            sw.threshold_hit[rule_id] += 1
+        except:
+            sw.threshold_hit[rule_id] = 1
 
     # listen to traffic
     while True:
@@ -314,7 +315,6 @@ def thread_TOR_switch(switch, iface):
         sys.stdout.flush()
 
     sw_hits_file.close()
-
 
 def thread_low_aggrigation_switches(switch, iface):
 
@@ -373,7 +373,7 @@ def thread_low_aggrigation_switches(switch, iface):
             # delete rule from switch
 
             # reset threshold count
-            # hit_counts[sw.name_str].pop(rule_id, None)
+            hit_counts[sw.name_str].pop(rule_id, None)
 
         # reset the all varibles and start counting again
         elif interval_time >= TIME_OUT:
@@ -383,7 +383,10 @@ def thread_low_aggrigation_switches(switch, iface):
         # write data to file [switch,destination ,timestemp,'hit']
         write_hits_to_file(str([sw.name_str,lookup_ip_request, time.time() - start_thread ,"hit"]),name_file)
         # update records in switch
-        sw.threshold_hit = hit_counts[sw.name_str]
+        try:
+            sw.threshold_hit[rule_id] += 1
+        except:
+            sw.threshold_hit[rule_id] = 1
 
     
     # listen to traffic
@@ -448,7 +451,7 @@ def thread_high_aggrigation_switches(switch, iface):
             # delete rule from switch
 
             # reset threshold count
-            # hit_counts[sw.name_str].pop(rule_id, None)
+            hit_counts[sw.name_str].pop(rule_id, None)
 
         # reset the all varibles and start counting again
         elif interval_time >= TIME_OUT:
@@ -458,7 +461,10 @@ def thread_high_aggrigation_switches(switch, iface):
         # write data to file [switch,destination ,timestemp,'hit']
         write_hits_to_file(str([sw.name_str,lookup_ip_request, time.time() - start_thread ,"hit"]),name_file)
         # update records in switch
-        sw.threshold_hit = hit_counts[sw.name_str]
+        try:
+            sw.threshold_hit[rule_id] += 1
+        except:
+            sw.threshold_hit[rule_id] = 1
     
     # listen to traffic
     while True:
@@ -560,38 +566,36 @@ if __name__ == '__main__':
     ################################################################################################################ Listen to s0-p1 incomint messages to controller
 
     iface = 's0-eth1'
+    time_tmp = time.time()
     packet_counter = 0
      
     print("Starting listening to port-1 on controller - incoming requests...")
 
     roof = 0
-    while roof < 1000 :  
-        roof +=1
+    while roof < len(policy_rules) :  
 
         # sniffing
         sniff(count = 1, iface = iface, prn = lambda x: handle_pkt_controller(x))
-        sys.stdout.flush()
 
         # packet counter
+        roof +=1
         packet_counter += 1
+        sys.stdout.flush()
 
-        # print values every 50 packets incoming
-        if (packet_counter % 20) == 0:
+    while True:
+        if time.time() - time_tmp > 10:
+            # print values every 10 seconds
             print("********************************************")
             print("Packet counter received in the controller = %d:" % packet_counter)
             for s in [s1, s2, s3, s4, s5, s6]:
-                
-                try:
-                    print("In %s: cache size now is: -%d-, and total -%d- hit counts in switch cache." % (s.name_str, len(s.cache), sum(s.threshold_hit.values())))            
-                except:
-                    print s.name_str
+                print("In %s: cache size now is: -%d-, and total -%d- hit counts in switch cache." % (s.name_str, len(s.cache), sum(s.threshold_hit.values())))            
             print("********************************************")
         
     ################################################################################################################ Ending main
 
     # close the connection
     ShutdownAllSwitchConnections()
-    exit()
+    exit(1)
     # finish threads
     for idNum in [idNum1, idNum2, idNum3, idNum4, idNum5, idNum6]:
         idNum.join()

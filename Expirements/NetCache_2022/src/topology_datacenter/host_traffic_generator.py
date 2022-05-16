@@ -126,7 +126,7 @@ if __name__ == '__main__':
 
         # medium flows - 20 pps
         if lrg % 2:
-            sent_counter += send_packet(dst_ip = "192.240.10.10")
+            sent_counter += send_packet(dst_ip = "192.0.10.10")
             md += 1
 
             # small flows - 10 pps
@@ -135,8 +135,8 @@ if __name__ == '__main__':
                 sml += 1
 
         # seconds timer handler            
-        if time.time() - time_start >= 1:
-            print("Sending rate: %d pps.    Sent %d packets so far.     (%d, %d, %d)" % (loops_per_sec, sent_counter, sml, md, lrg))
+        if time.time() - time_start >= 2:
+            print("Sending rate: %d pp2s.    Sent %d packets so far.     (%d, %d, %d)" % (loops_per_sec, sent_counter, sml, md, lrg))
             # reset timer
             time_start = time.time()
             loops_per_sec = 0
