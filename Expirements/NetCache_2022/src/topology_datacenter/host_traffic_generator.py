@@ -155,6 +155,7 @@ if __name__ == '__main__':
                     s = 0
                 sml += 1
 
+
         # seconds timer handler            
         if time.time() - time_start >= 2:
             print("Sending rate: %d pp2s.    Sent %d packets so far.     (%d, %d, %d)" % (loops_per_sec, sent_counter, sml, md, lrg))

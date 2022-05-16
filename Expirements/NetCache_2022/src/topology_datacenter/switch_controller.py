@@ -29,12 +29,30 @@ from scapy.layers.inet import _IPOption_HDR
 
 ######################################################################################################################################## Global Varriables
 
+# default
 THRESHOLD_HIT_AGG = 2
 THRESHOLD_HIT_CONTROLLER = 2
-CACHE_SIZE = 8
+CACHE_SIZE = 10
 TIME_OUT = 3
-policy_csv_path = "../tests_dependencies/policy.csv"
 path_to_expiriment = "../../results/Expiriment1/"
+policy_csv_path = "../tests_dependencies/policy.csv"
+
+# Expiriment 1:
+
+THRESHOLD_HIT_AGG = 10
+THRESHOLD_HIT_CONTROLLER = 10
+CACHE_SIZE = 15
+TIME_OUT = 3
+
+path_to_expiriment = "../../results/Expiriment1/"
+
+# Expiriment 2:
+THRESHOLD_HIT_AGG = 1
+THRESHOLD_HIT_CONTROLLER = 1
+CACHE_SIZE_TOR = 20
+CACHE_SIZE_AGG = 40
+TIME_OUT = 3
+path_to_expiriment = "../../results/Expiriment2/"
 
 policy_rules = {}                   # { policy_id: ['IP ADDR', MASK] } 
 controller_miss_record = {}
@@ -53,6 +71,7 @@ class CacheSwitch:
         # cache properties
         self.cache = {}             # { policy_id: [LRU flag] } 
         self.threshold_hit  = {}    # { policy_id: [th counter] } 
+        self.rules = {}
         # hit counter switch
         self.helper_name_str = name + '0'
         self.helper_localhost_port = helper_localhost_port
@@ -99,13 +118,17 @@ class CacheSwitch:
                 "dstAddr": "08:00:00:00:00:00",
                 "port": sw_exit_port
             })
-        self.obj.WriteTableEntry(table_entry)
-        print 'Added a new rule in %s:  %s / %d.' % (self.name_str, dst_ip_addr, mask)
+        try:
+            self.obj.WriteTableEntry(table_entry)
+            print 'Added a new rule in %s:  %s / %d.' % (self.name_str, dst_ip_addr, mask)
+        except:
+            print 'P4runtime error - in WriteTableEntry'
+            print dst_ip_addr
+            self.read_tables()
 
-        # TODO BUG
         return table_entry # for deletion
 
-    def check_and_insert_rule_to_cache(self, rule_id, wanted_sw_exit_port):
+    def check_and_insert_rule_to_cache(self, rule_id, wanted_sw_exit_port, cache_sz = CACHE_SIZE_AGG):
 
         # get rule to insert
         global policy_rules
@@ -116,7 +139,7 @@ class CacheSwitch:
         if rule_id in self.cache.keys():
             return False
 
-        if len(self.cache) < CACHE_SIZE:
+        if len(self.cache) < cache_sz:
             # if we have enough room for rule:
 
             # update LRU
@@ -129,7 +152,7 @@ class CacheSwitch:
 
             # update LRU and get rule we want to delete
             for i in self.cache.keys():
-                if self.cache[i] >= CACHE_SIZE:
+                if self.cache[i] >= cache_sz:
                     rule_to_del = i
                 else:
                     self.cache[i] = self.cache[i] + 1
@@ -137,11 +160,18 @@ class CacheSwitch:
             self.cache[rule_id] = 1           # new rule
 
             # delete LRU rule
-            # rule_to_del
-            # TODO bug - delete rule!!!!!!!
-        
+            tmp_ = self.rules[rule_to_del]
+            try:
+                self.obj.DeleteTableEntry(tmp_)
+                print("Deleted a rule in %s:    %s / 32" % (self.name_str, policy_rules[rule_to_del]))
+            except:
+                print 'P4runtime error - in DeleteTableEntry'
+                # close the connection
+                ShutdownAllSwitchConnections()
+
         # insert new rule
-        self.insert_rule(dst_ip_addr=address, mask=mask, sw_exit_port=wanted_sw_exit_port)
+        tmp = self.insert_rule(dst_ip_addr=address, mask=mask, sw_exit_port=wanted_sw_exit_port)
+        self.rules[rule_id] = tmp
 
     def read_tables(self):
         print('----- Reading tables rules for %s -----' % self.name_str)
@@ -160,7 +190,6 @@ class CacheSwitch:
                     for s in str_tmp:
                         print '%s.' % ord(s),
                     print(' / %d' % list((p4info_helper.get_match_field_value(m),)[0])[1])
-                print
         print('--------------------------------------')
 
 ######################################################################################################################################## Functions
@@ -252,6 +281,9 @@ def handle_pkt_controller(pkt):
         # insert rule to switch s6 cache
         s6.check_and_insert_rule_to_cache(rule_id=rule_id, wanted_sw_exit_port=4)
 
+        #s6.read_tables()
+
+
 
 """ LISTENING TO SWITCHES FUNCTIONS (THREADS) """
 
@@ -297,9 +329,9 @@ def thread_TOR_switch(switch, iface):
 
         # update counter
         try:
-            hit_counts[sw.name_str][rule_id] += 1
+            hit_counts[switch.name_str][rule_id] += 1
         except:
-            hit_counts[sw.name_str][rule_id]  = 1
+            hit_counts[switch.name_str][rule_id]  = 1
 
         # write data to file [switch,timestemp,'hit']
         write_hits_to_file(str([switch.name_str,lookup_ip_request, time.time() - start_thread ,"hit"]),name_file)
@@ -367,7 +399,7 @@ def thread_low_aggrigation_switches(switch, iface):
         if hit_counts[sw.name_str][rule_id][0] >= THRESHOLD_HIT_AGG and interval_time < TIME_OUT:
 
             # insert rule to switch s6 cache
-            sw.check_and_insert_rule_to_cache(rule_id=rule_id, wanted_sw_exit_port=2) # 2 listener (HIT)
+            sw.check_and_insert_rule_to_cache(rule_id=rule_id, wanted_sw_exit_port=2, cache_sz = CACHE_SIZE_TOR) # 2 listener (HIT)
 
             # TODO BUG
             # delete rule from switch
@@ -487,7 +519,8 @@ if __name__ == '__main__':
 
     print("\n********************************************")
     print("Starting Controller Program")
-    print("Cache size is %d." % CACHE_SIZE )
+    print("Cache size TOR is %d." % CACHE_SIZE_TOR )
+    print("Cache size AGG is %d." % CACHE_SIZE_AGG )
     print("Threshold aggrigation HIT size is %d." % THRESHOLD_HIT_AGG )
     print("Threshold controller HIT size is %d." % THRESHOLD_HIT_CONTROLLER )
     print("Policy is read from file: %s." % policy_csv_path )
@@ -571,19 +604,19 @@ if __name__ == '__main__':
      
     print("Starting listening to port-1 on controller - incoming requests...")
 
-    roof = 0
-    while roof < len(policy_rules) :  
+    while True:  
 
         # sniffing
         sniff(count = 1, iface = iface, prn = lambda x: handle_pkt_controller(x))
 
         # packet counter
-        roof +=1
         packet_counter += 1
         sys.stdout.flush()
 
+    """
+
     while True:
-        if time.time() - time_tmp > 10:
+        if time.time() - time_tmp > 20:
             time_tmp = time.time()
             # print values every 10 seconds
             print("********************************************")
@@ -591,7 +624,9 @@ if __name__ == '__main__':
             for s in [s1, s2, s3, s4, s5, s6]:
                 print("In %s: cache size now is: -%d-, and total -%d- hit counts in switch cache." % (s.name_str, len(s.cache), sum(s.threshold_hit.values())))            
             print("********************************************")
-        
+    
+	"""
+
     ################################################################################################################ Ending main
 
     # close the connection
