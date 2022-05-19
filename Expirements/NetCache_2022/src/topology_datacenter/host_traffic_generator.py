@@ -8,6 +8,20 @@ import random
 import csv
 import time
 from time import sleep
+import os
+
+import argparse
+import grpc
+import os
+import sys
+import time
+import socket
+import random
+import struct
+import csv
+import threading    
+from time import sleep
+
 
 # scapy 
 import logging
@@ -17,7 +31,7 @@ from scapy.layers.inet import _IPOption_HDR
 
 ######################################################################################################################################## Global variables
 
-MAX_PACKETS_SENT = 1000
+MAX_PACKETS_SENT = 5000
 
 ######################################################################################################################################## Functions
 
@@ -63,6 +77,11 @@ def send_packet(dst_ip = "192.10.10.10"):
 
         return 0
 
+def write_pps_to_file(data , file):
+    hits_file = open(file, 'a')
+    hits_file.write(data)
+    hits_file.write("\n")
+
 ######################################################################################################################################## Main
 
 if __name__ == '__main__':
@@ -71,8 +90,8 @@ if __name__ == '__main__':
     if "Loading flows":
 
         # initial uploading for traffic flows
-        if len(sys.argv)<2:
-            print('Need to pass a .csv file of traffic flows: ./host_traffic_generator.py ../test_dependencies/flow_1.csv')
+        if len(sys.argv)<4:
+            print('Need to pass a .csv file of traffic flows: ./host_traffic_generator.py ../test_dependencies/flow_1.csv ../../results/Expiriment1/1_host s1')
             exit(1)
 
         flow_small  = {}
@@ -108,6 +127,12 @@ if __name__ == '__main__':
             print("Failed to upload csv file.")
             exit(1)
 
+    
+    if "Loading file name":
+        name_file = sys.argv[2] + '/' + sys.argv[3] + '_pps.txt'
+        sw_pps_file = open(name_file, 'w')
+
+
     # start sending process
     time_start = time.time()
     sent_counter = 0
@@ -120,50 +145,65 @@ if __name__ == '__main__':
     med_bank   = flow_medium.values()
     large_bank = flow_large.values()
 
+    tmp = 0
+
+
+
 
     # running the host program
     print("Sending traffic...")
+    print("Sending rate: X p in Y sec.    Sent 0 packets so far.     (s, m, l)")
+
     while sent_counter < MAX_PACKETS_SENT:
-        loops_per_sec += 1
+        # reset timer
+        time_start = time.time()
 
-        # large flows - 40 pps - 10 addresses
-        try:
-            sent_counter += send_packet(dst_ip = large_bank[l])
-            l += 1
-        except:
-            sent_counter += send_packet(dst_ip = large_bank[0])
-            l = 0
-        lrg += 1
-
-        # medium flows - 20 pps - 20 addresses
-        if lrg % 2:
+        # 70 pps = 40 pps + 20 + 10
+        for loop in range(40):
+            
+            # large flows - 40 pps - 10 addresses
             try:
-                sent_counter += send_packet(dst_ip = med_bank[m])
-                m += 1
+                sent_counter += send_packet(dst_ip = large_bank[l])
+                l += 1
             except:
-                sent_counter += send_packet(dst_ip = med_bank[0])
-                m = 0
-            md += 1
+                sent_counter += send_packet(dst_ip = large_bank[0])
+                l = 0
+            lrg += 1
 
-            # small flows - 10 pps - 10 addresses
-            if md % 2:
+            # medium flows - 20 pps - 20 addresses
+            if lrg % 2:
                 try:
-                    sent_counter += send_packet(dst_ip = small_bank[s])
-                    s += 1
+                    sent_counter += send_packet(dst_ip = med_bank[m])
+                    m += 1
                 except:
-                    sent_counter += send_packet(dst_ip = small_bank[0])
-                    s = 0
-                sml += 1
+                    sent_counter += send_packet(dst_ip = med_bank[0])
+                    m = 0
+                md += 1
+
+                # small flows - 10 pps - 10 addresses
+                if md % 2:
+                    try:
+                        sent_counter += send_packet(dst_ip = small_bank[s])
+                        s += 1
+                    except:
+                        sent_counter += send_packet(dst_ip = small_bank[0])
+                        s = 0
+                    sml += 1
 
 
         # seconds timer handler            
-        if time.time() - time_start >= 2:
-            print("Sending rate: %d pp2s.    Sent %d packets so far.     (%d, %d, %d)" % (loops_per_sec, sent_counter, sml, md, lrg))
-            # reset timer
-            time_start = time.time()
-            loops_per_sec = 0
+        pps = sml+md+lrg
+        t = (time.time() - time_start)
+        #pps = pps/t
+        print("Sending rate: %d p in %f s.    Sent %d packets so far.     (%d, %d, %d)" % (pps, t, sent_counter, sml, md, lrg))
+        
+        sml = md = lrg = 0
 
-            sml = md = lrg = 0
+        #  to file:
+        sw_pps_file = open(name_file, "a")
+        sw_pps_file.writelines([str(time.time()), "  ", str(t) ," = 70 pp\n"])
+        sw_pps_file.close()
+
 
     # finish main
     print("Successfully transsmitted %d packets." % (sent_counter))
