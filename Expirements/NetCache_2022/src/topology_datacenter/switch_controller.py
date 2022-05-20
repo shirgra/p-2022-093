@@ -39,13 +39,12 @@ policy_csv_path = "../tests_dependencies/policy.csv"
 
 # Expiriment 1:
 
-"""
+THRESHOLD_HIT_CONTROLLER = 13
 THRESHOLD_HIT_AGG = 10
-THRESHOLD_HIT_CONTROLLER = 5
 CACHE_SIZE_TOR = 15
 CACHE_SIZE_AGG = 15
-TIME_OUT = 5
-path_to_expiriment = "../../results/Expiriment2/3_hosts/"
+TIME_OUT = 15
+path_to_expiriment = "../../results/Expiriment1/3_host/"
 """
 
 # Expiriment 2:
@@ -55,6 +54,7 @@ CACHE_SIZE_TOR = 30
 CACHE_SIZE_AGG = 40
 TIME_OUT = 15
 path_to_expiriment = "../../results/Expiriment2/3_hosts/"
+"""
 
 policy_rules = {}                   # { policy_id: ['IP ADDR', MASK] } 
 controller_miss_record = {}
@@ -139,8 +139,12 @@ class CacheSwitch:
 
         # update LRU
         if rule_id in self.cache.keys():
+            # update LRU
             for i in self.cache.keys():
-                self.cache[i] = self.cache[i] + 1
+                if self.cache[i] < self.cache[rule_id]:
+                    self.cache[i] = self.cache[i] + 1
+            # set lru 
+            self.cache[rule_id] = 0
             return None
 
         if len(self.cache) < cache_sz:
@@ -151,21 +155,21 @@ class CacheSwitch:
                 self.cache[i] = self.cache[i] + 1
 
             # add the new rule
-            self.cache[rule_id] = 1
+            self.cache[rule_id] = 0
 
 
         else:
-            # if cache is full -> evict LRU rule
+            # if cache is full and rule not in cache-> evict LRU rule
 
             # update LRU and get rule we want to delete
             rule_to_del = self.cache.keys()[self.cache.values().index(max(list(self.cache.values())))] 
             self.cache.pop(rule_to_del, None) # delete LRU rule
 
-            # add the new rule
-            self.cache[rule_id] = 1
-
             for i in self.cache.keys():
                 self.cache[i] = self.cache[i] + 1
+
+            # set lru 
+            self.cache[rule_id] = 0
 
             # delete LRU rule
             tmp_ = self.rules[rule_to_del]
@@ -190,7 +194,7 @@ class CacheSwitch:
             # set lru 
             self.cache[rule_id] = 0
         else:
-            print "\n\n\nErr in 193 - rule_id=%s given is not in cache\n\n\n"
+            print "\n\n\nErr in 193 - rule_id=%s given is not in cache\n\n\n" % rule_id
 
 
     def read_tables(self):
@@ -345,7 +349,13 @@ def thread_TOR_switch(switch, iface):
         elif source_ip_address == '10.0.2.2':
             sw = s2
         elif source_ip_address == '10.0.3.3':
-            sw = s3
+            sw = s3  
+        
+        try:
+            sw = sw # check if assigned
+        except:
+            print "ERR in 413: source_ip_address not found: %s" % source_ip_address
+            return None
 
         # update counter
         try:
@@ -422,13 +432,15 @@ def thread_low_aggrigation_switches(switch, iface):
 
         #stop clock to check if timeout
         interval_time = time.time() - hit_counts[sw.name_str][rule_id][1]
+        
+        switch.only_update_lru(rule_id)
 
         # if we crossed the miss threshold for this rule
         if hit_counts[sw.name_str][rule_id][0] >= THRESHOLD_HIT_AGG and interval_time < TIME_OUT:
 
             # insert rule to switch s6 cache
-            switch.check_and_insert_rule_to_cache(rule_id=rule_id, wanted_sw_exit_port=2, cache_sz = CACHE_SIZE_TOR) # 2 listener (HIT)
-
+            sw.check_and_insert_rule_to_cache(rule_id=rule_id, wanted_sw_exit_port=2, cache_sz = CACHE_SIZE_TOR) # 2 listener (HIT)
+            
             # TODO BUG
             # delete rule from switch
 
@@ -442,8 +454,6 @@ def thread_low_aggrigation_switches(switch, iface):
 
         # write data to file [switch,destination ,timestemp,'hit']
         write_hits_to_file(str([switch.name_str,lookup_ip_request, time.time() - start_thread ,"hit"]),name_file)
-        switch.only_update_lru(rule_id)
-
         # update records in switch
         try:
             sw.threshold_hit[rule_id] += 1
@@ -502,12 +512,15 @@ def thread_high_aggrigation_switches(switch, iface):
 
         #stop clock to check if timeout
         interval_time = time.time() - hit_counts[sw.name_str][rule_id][1]
+        
+        switch.only_update_lru(rule_id)
+
 
         # if we crossed the miss threshold for this rule
         if hit_counts[sw.name_str][rule_id][0] >= THRESHOLD_HIT_CONTROLLER and interval_time < TIME_OUT:
 
             # insert rule to switch s6 cache
-            switch.check_and_insert_rule_to_cache(rule_id=rule_id, wanted_sw_exit_port=4) # 4 listener (HIT)
+            sw.check_and_insert_rule_to_cache(rule_id=rule_id, wanted_sw_exit_port=4) # 4 listener (HIT)
 
             # TODO BUG
             # delete rule from switch
@@ -522,8 +535,6 @@ def thread_high_aggrigation_switches(switch, iface):
     
         # write data to file [switch,destination ,timestemp,'hit']
         write_hits_to_file(str([switch.name_str,lookup_ip_request, time.time() - start_thread ,"hit"]),name_file)
-        switch.only_update_lru(rule_id)
-
         # update records in switch
         try:
             sw.threshold_hit[rule_id] += 1
@@ -657,7 +668,7 @@ if __name__ == '__main__':
                 print("In %s: cache size now is: -%d-, and total -%d- hit counts in switch cache." % (s.name_str, len(s.cache), sum(s.threshold_hit.values())))            
             print("********************************************")
     
-	"""
+    """
 
     ################################################################################################################ Ending main
 
