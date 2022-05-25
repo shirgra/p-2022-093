@@ -1,0 +1,4 @@
+s0 python switch_controller.py >> log_controller &
+h1 python host_traffic_generator.py 1 >> log_h1 &
+h2 python host_traffic_generator.py 2 >> log_h2 &
+h3 python host_traffic_generator.py 3 >> log_h3 &

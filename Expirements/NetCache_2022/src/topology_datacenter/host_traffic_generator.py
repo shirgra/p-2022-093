@@ -49,6 +49,7 @@ def get_if():
     return iface
 
 # this function sends packets sequence according to a given flow
+
 def send_packet(dst_ip = "192.10.10.10"):
 
     try:
@@ -90,8 +91,8 @@ if __name__ == '__main__':
     if "Loading flows":
 
         # initial uploading for traffic flows
-        if len(sys.argv)<4:
-            print('Need to pass a .csv file of traffic flows: ./host_traffic_generator.py ../test_dependencies/flow_1.csv ../../results/Expiriment1/1_host s1')
+        if len(sys.argv)<2:
+            print('Need to pass a .csv file of traffic flows: ./host_traffic_generator.py 1 EX_2_3')
             exit(1)
 
         flow_small  = {}
@@ -102,7 +103,8 @@ if __name__ == '__main__':
         try:
 
             # load the csv file to local list
-            name_csv = sys.argv[1]
+            name_csv = '../tests_dependencies/flow_1.csv'
+            print name_csv 
             with open(name_csv) as csvfile:
 
                 rows = csv.reader(csvfile, quotechar='|')
@@ -129,7 +131,10 @@ if __name__ == '__main__':
 
     
     if "Loading file name":
-        name_file = sys.argv[2] + '/' + sys.argv[3] + '_pps.txt'
+        try:
+            name_file = '../../results'+'/'+ sys.argv[2] +'/h' + sys.argv[1] + '_pps.txt'
+        except:
+            name_file = '../../results'+ '/h' + sys.argv[1] + '_pps.txt'
         sw_pps_file = open(name_file, 'w')
 
 

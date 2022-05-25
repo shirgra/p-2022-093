@@ -34,26 +34,24 @@ THRESHOLD_HIT_AGG = 2
 THRESHOLD_HIT_CONTROLLER = 2
 CACHE_SIZE = 10
 TIME_OUT = 3
-path_to_expiriment = "../../results/Expiriment1/1_host/"
 policy_csv_path = "../tests_dependencies/policy.csv"
 
 # Expiriment 1:
+THRESHOLD_HIT_CONTROLLER = 40   # should be 22 pps = 
+THRESHOLD_HIT_AGG = 20          # should be 11 pps = 
+CACHE_SIZE_TOR = 15             # should be 10
+CACHE_SIZE_AGG = 15             # should be 10
+TIME_OUT = 2                    # should be 2
+path_to_expiriment = "../../results/"
 
-THRESHOLD_HIT_CONTROLLER = 13
-THRESHOLD_HIT_AGG = 10
-CACHE_SIZE_TOR = 15
-CACHE_SIZE_AGG = 15
-TIME_OUT = 15
-path_to_expiriment = "../../results/Expiriment1/3_host/"
 """
-
 # Expiriment 2:
-THRESHOLD_HIT_AGG = 1
-THRESHOLD_HIT_CONTROLLER = 1
-CACHE_SIZE_TOR = 30
-CACHE_SIZE_AGG = 40
-TIME_OUT = 15
-path_to_expiriment = "../../results/Expiriment2/3_hosts/"
+THRESHOLD_HIT_AGG = 1           # should be 0
+THRESHOLD_HIT_CONTROLLER = 1    # should be 0
+CACHE_SIZE_TOR = 20             # should be 20
+CACHE_SIZE_AGG = 1              # should be 0
+TIME_OUT = 2                    # should be 2
+path_to_expiriment = "../../results/"
 """
 
 policy_rules = {}                   # { policy_id: ['IP ADDR', MASK] } 
@@ -132,6 +130,8 @@ class CacheSwitch:
 
     def check_and_insert_rule_to_cache(self, rule_id, wanted_sw_exit_port, cache_sz = CACHE_SIZE_AGG):
 
+        
+
         # get rule to insert
         global policy_rules
         address   = policy_rules[rule_id]                # get rule address
@@ -158,7 +158,7 @@ class CacheSwitch:
             self.cache[rule_id] = 0
 
 
-        else:
+        elif len(self.cache) >= cache_sz:
             # if cache is full and rule not in cache-> evict LRU rule
 
             # update LRU and get rule we want to delete
@@ -194,7 +194,7 @@ class CacheSwitch:
             # set lru 
             self.cache[rule_id] = 0
         else:
-            print "\n\n\nErr in 193 - rule_id=%s given is not in cache\n\n\n" % rule_id
+            print "Err in 193 - rule_id=%s given is not in cache" % rule_id
 
 
     def read_tables(self):
@@ -364,7 +364,7 @@ def thread_TOR_switch(switch, iface):
             hit_counts[switch.name_str][rule_id]  = 1
 
         # write data to file [switch,timestemp,'hit']
-        write_hits_to_file(str([switch.name_str,lookup_ip_request, time.time() - start_thread ,"hit"]),name_file)
+        write_hits_to_file(str([switch.name_str,lookup_ip_request, time.time() - start_thread , time.time(), "hit"]),name_file)
         switch.only_update_lru(rule_id)
 
         # update records in switch
@@ -373,12 +373,18 @@ def thread_TOR_switch(switch, iface):
         except:
             sw.threshold_hit[rule_id] = 1
 
+
     # listen to traffic
     while True:
         sniff(count = 1, iface = iface, prn = lambda pkt: handle_pkt(pkt))
         sys.stdout.flush()
 
-    sw_hits_file.close()
+        # packet counter
+        global packet_counter
+        if packet_counter > 6000:
+            sw_hits_file.close()
+            exit(1)
+
 
 def thread_low_aggrigation_switches(switch, iface):
 
@@ -453,7 +459,7 @@ def thread_low_aggrigation_switches(switch, iface):
             hit_counts[sw.name_str][rule_id][1]  = start_time = time.time()
 
         # write data to file [switch,destination ,timestemp,'hit']
-        write_hits_to_file(str([switch.name_str,lookup_ip_request, time.time() - start_thread ,"hit"]),name_file)
+        write_hits_to_file(str([switch.name_str,lookup_ip_request, time.time() - start_thread , time.time(), "hit"]),name_file)
         # update records in switch
         try:
             sw.threshold_hit[rule_id] += 1
@@ -461,12 +467,16 @@ def thread_low_aggrigation_switches(switch, iface):
             sw.threshold_hit[rule_id] = 1
 
     
+    
     # listen to traffic
     while True:
         sniff(count = 1, iface = iface, prn = lambda pkt: handle_pkt(pkt))
         sys.stdout.flush()
-
-    sw_hits_file.close()
+        # packet counter
+        global packet_counter
+        if packet_counter > 6000:
+            sw_hits_file.close()
+            exit(1)
 
 def thread_high_aggrigation_switches(switch, iface):
 
@@ -534,7 +544,7 @@ def thread_high_aggrigation_switches(switch, iface):
             hit_counts[sw.name_str][rule_id][1]  = start_time = time.time()
     
         # write data to file [switch,destination ,timestemp,'hit']
-        write_hits_to_file(str([switch.name_str,lookup_ip_request, time.time() - start_thread ,"hit"]),name_file)
+        write_hits_to_file(str([switch.name_str,lookup_ip_request, time.time() - start_thread , time.time(), "hit"]),name_file)
         # update records in switch
         try:
             sw.threshold_hit[rule_id] += 1
@@ -545,8 +555,11 @@ def thread_high_aggrigation_switches(switch, iface):
     while True:
         sniff(count = 1, iface = iface, prn = lambda pkt: handle_pkt(pkt))
         sys.stdout.flush()
-
-    sw_hits_file.close()
+        # packet counter
+        global packet_counter
+        if packet_counter > 6000:
+            sw_hits_file.close()
+            exit(1)
 
 ######################################################################################################################################## MAIN
 
@@ -647,7 +660,8 @@ if __name__ == '__main__':
      
     print("Starting listening to port-1 on controller - incoming requests...")
 
-    while True:  
+    flagWhile = 1
+    while flagWhile:  
 
         # sniffing
         sniff(count = 1, iface = iface, prn = lambda x: handle_pkt_controller(x))
@@ -655,6 +669,10 @@ if __name__ == '__main__':
         # packet counter
         packet_counter += 1
         sys.stdout.flush()
+
+        if packet_counter > 6000:
+            flagWhile = False
+
 
     """
 
