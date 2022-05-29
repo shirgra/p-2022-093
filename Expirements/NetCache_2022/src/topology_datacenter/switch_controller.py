@@ -46,21 +46,26 @@ THRESHOLD_HIT_AGG = 10          # should be 11 pps =
 CACHE_SIZE_TOR = 15             # should be 10
 CACHE_SIZE_AGG = 15             # should be 10
 
-"""
-
 # Expiriment 2: BASE
-THRESHOLD_HIT_AGG = 5           # should be 0
-THRESHOLD_HIT_CONTROLLER = 5    # should be 0
+THRESHOLD_HIT_AGG = 3           # should be 3
+THRESHOLD_HIT_CONTROLLER = 7    # should be 7
 CACHE_SIZE_TOR = 20             # should be 20
-CACHE_SIZE_AGG = 10             # should be 0
+CACHE_SIZE_AGG = 10             # should be 10
 
-# Expiriment 2: BASE
-THRESHOLD_HIT_AGG = 500           # should be infty
-THRESHOLD_HIT_CONTROLLER = 5000    # should be infty
-CACHE_SIZE_TOR = 1             # should be 0
-CACHE_SIZE_AGG = 1              # should be 0
-TIME_OUT = 1                    # should be 2
-TIME_OUT_AGG = 1               # should be 2 or < 5
+# Expiriment 3: BASE
+THRESHOLD_HIT_AGG = 5           # should be 5
+THRESHOLD_HIT_CONTROLLER = 5    # should be 5
+CACHE_SIZE_TOR = 20             # should be 20
+CACHE_SIZE_AGG = 10             # should be 10
+
+"""
+# Expiriment NoCache
+THRESHOLD_HIT_AGG = 5000           
+THRESHOLD_HIT_CONTROLLER = 5000    
+CACHE_SIZE_TOR = 1           
+CACHE_SIZE_AGG = 1              
+TIME_OUT = 1                    
+TIME_OUT_AGG = 1               
 """
 
 policy_rules = {}                   # { policy_id: ['IP ADDR', MASK] } 
@@ -129,7 +134,7 @@ class CacheSwitch:
             })
         try:
             self.obj.WriteTableEntry(table_entry)
-            print 'Added a new rule in %s:  %s / %d.' % (self.name_str, dst_ip_addr, mask)
+            #print 'Added a new rule in %s:  %s / %d.' % (self.name_str, dst_ip_addr, mask)
         except:
             print 'P4runtime error - in WriteTableEntry'
             print dst_ip_addr
@@ -184,7 +189,7 @@ class CacheSwitch:
             tmp_ = self.rules[rule_to_del]
             try:
                 self.obj.DeleteTableEntry(tmp_)
-                print("Deleted a rule in %s:    %s / 32" % (self.name_str, policy_rules[rule_to_del]))
+                #print("Deleted a rule in %s:    %s / 32" % (self.name_str, policy_rules[rule_to_del]))
             except:
                 print 'P4runtime error - in DeleteTableEntry'
                 # close the connection
@@ -432,7 +437,7 @@ def thread_low_aggrigation_switches(switch, iface):
         try:
             sw = sw # check if assigned
         except:
-            print "ERR in 413: source_ip_address not found: %s\n\n\n" % source_ip_address
+            print "ERR in 413: source_ip_address not found: %s" % source_ip_address
             return None
 
         # update counter

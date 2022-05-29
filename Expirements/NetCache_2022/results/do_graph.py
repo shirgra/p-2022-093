@@ -115,7 +115,7 @@ plt.ylabel("Hit-in-cache count per Second")
 # plt.show()
 #plt.savefig(title + "_func_of_pkts.png")
 fig.set_size_inches(10, 5)
-plt.savefig(title + "_per_pkts.png")
+plt.savefig(title + "_hits.png")
 plt.clf()
 
 
@@ -131,13 +131,15 @@ tot_tor = len(res_Tor)  # no. of total hits in s123
 tot_agg = len(res_agg)  # no. of total hits in s45
 tot_core = len(res_core)  # no. of total hits in s6
 tot_controller = len(res_controler)  # no. of total hits in s0
-
+tot = (tot_tor+tot_agg+tot_core+tot_controller)
 # tot pckts sent
 
 
-print((tot_tor+tot_agg+tot_core+tot_controller)/tot_pckt, " %", " of pakcets sent.")
+res = (tot_tor+tot_agg+tot_core)/(tot)
+print(res*100, " %", " of pakcets sent.")
+#tot = (tot_tor+tot_agg+tot_core+tot_controller)/(tot_pckt)
 
-y_points = [tot_tor/tot_pckt, tot_agg/tot_pckt, tot_core/tot_pckt, tot_controller/tot_pckt]
+y_points = [tot_tor/tot, tot_agg/tot, tot_core/tot, tot_controller/tot]
 #print(y_points)
 #print(tot_pckt)
 #print(sum(y_points))
@@ -151,16 +153,19 @@ x = np.arange(len(labels))  # the label locations
 #width = 0.35  # the width of the bars
 
 fig, ax = plt.subplots()
-rects1 = ax.bar(x, y_points, label='Men')
+rects1 = ax.bar(x, y_points, label='No.')
 
 # Add some text for labels, title and custom x-axis tick labels, etc.
-ax.set_ylabel('%' + " of Total packets sent")
-ax.set_title('Average Number of hops')
+plt.ylabel('%' + " out of Total packets sent")
+ax.set_title('Number of hops per packet sent. Avg.='+ str(int(res*100)) + "%" )#+ ". Tot.=" + str(int(tot*100)) + "%" )
 ax.set_xticks(x)
+plt.xlabel("Number of hops until a hit in cache occures")
+# plt.show()
+#plt.savefig(title + "_func_of_pkts.png")
+plt.savefig(title + "_no_of_hops.png")
 #ax.legend()
+#plt.show()
 
-
-plt.show()
 
 
 
