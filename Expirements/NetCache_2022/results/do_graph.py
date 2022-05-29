@@ -13,12 +13,13 @@ graph_name = folder = sys.argv[1]
 
 res_Tor = []
 res_agg = []
-res_cont = []
+res_core = []
+res_controler = []
 
-# build slices
+# defines
 x_points = np.arange(0, 200, 1)
 
-for s in range(1, 7):
+for s in range(0, 7):
     res = []
     name = r'' + folder + '/s' + str(s) + '_hit_count.txt'
     switch_hit_file = open(name, 'r')
@@ -27,12 +28,14 @@ for s in range(1, 7):
         tmp = [line[1:-2].split(", ")[i][0:-1] for i in range(4)]
         res.append(float(tmp[2]))
 
-    if s < 4:
+    if  s == 1 or s == 2 or s == 3:
         res_Tor.extend(res)
+    elif s == 0:
+        res_controler.extend(res)    
     elif s == 4 or s == 5:
         res_agg.extend(res)
     elif s == 6:
-        res_cont.extend(res)
+        res_core.extend(res)
 
     y_points = [0 for i in list(range(len(x_points)))]
 
@@ -42,49 +45,11 @@ for s in range(1, 7):
             if x_points[beg] <= hit <= x_points[beg] + 1:
                 y_points[beg] += 1
 
-    # plot
-    # ax.plot(x_points, y_points, linewidth=2.0, label="s" + str(s))
-    # ax.set(xlim=(0, 8), xticks=np.arange(1, 8),
-    #        ylim=(0, 8), yticks=np.arange(1, 8))
-
-# title = graph_name
-# plt.title(title)
-# ax.legend()
-# ax.grid(True)
-# plt.xlabel("Time [seconds]")
-# plt.ylabel("Hit-in-cache count")
-# # plt.show()
-# # plt.savefig(title + ".jpg")
-# plt.clf()
-
-fig, ax = plt.subplots()
-for res, name in zip([res_agg, res_Tor, res_cont], ["Aggregation Switches", "TOR Switches", "Controller Switch"]):
-    # build slices
-    y_points = [None for i in list(range(len(x_points)))]
-    # fill points for switch
-    for hit in res:
-        for beg in range(len(x_points)):
-            if x_points[beg] <= hit <= x_points[beg] + 1:
-                try:
-                    y_points[beg] += 1
-                except:
-                    y_points[beg] = 1
-    # plot
-    ax.plot(x_points, y_points, linewidth=2.0, label=name)
-title = graph_name
-plt.title(title)
-ax.legend()
-ax.grid(True)
-plt.xlabel("Time [seconds]")
-plt.ylabel("Hit-in-cache count")
-# plt.show()
-plt.savefig("../" + title + "_func_of_time.png")
-plt.clf()
-
-
 # new type graph
 total_min = 9 ** 10
+tot_pckt = 0 
 res = []
+# find start point
 for h in range(1, 4):
     try:
         name = r'' + folder + '/h' + str(h) + '_pps.txt'
@@ -95,6 +60,7 @@ for h in range(1, 4):
             total_min = min_time
     except:
         pass
+
 for h in range(1, 4):
     try:
         name = r'' + folder + '/h' + str(h) + '_pps.txt'
@@ -106,6 +72,7 @@ for h in range(1, 4):
             # tmp = float(line.split()[1])
             tmp += 70
             res.append([t - total_min, 70])
+            tot_pckt+=70
     except:
         pass
 
@@ -126,9 +93,9 @@ import itertools
 my_points = list(itertools.accumulate(my_points))
 
 fig, ax = plt.subplots()
-for res, name in zip([res_agg, res_Tor, res_cont], ["Aggregation Switches", "TOR Switches", "Controller Switch"]):
+for res, name, color, linestyle in zip([res_core, res_agg, res_Tor], ["Core Switch", "Aggregation Switches", "TOR Switches"], ["Black", "Cyan", "Green"], ['--', '-', '-.']):
     # build slices
-    y_points = [None for i in list(range(len(x_points)))]
+    y_points = [0 for i in list(range(len(x_points)))]
     # fill points for switch
     for hit in res:
         for beg in range(len(x_points)):
@@ -138,16 +105,62 @@ for res, name in zip([res_agg, res_Tor, res_cont], ["Aggregation Switches", "TOR
                 except:
                     y_points[beg] = 1
     # plot
-    ax.plot(my_points, y_points, linewidth=2.0, label=name)
+    ax.plot(my_points, y_points, color=color, linestyle=linestyle, linewidth=2.0, label=name)
 title = graph_name
-plt.title(title)
+plt.title("Hit-in-Cache hit count per Second. Exp.#" + title)
 ax.legend()
 ax.grid(True)
-plt.xlabel("Packets so far")
-plt.ylabel("Hit-in-cache count")
+plt.xlabel("Average Packets so far")
+plt.ylabel("Hit-in-cache count per Second")
 # plt.show()
-plt.savefig("../" + title + "_func_of_pkts.png")
+#plt.savefig(title + "_func_of_pkts.png")
+fig.set_size_inches(10, 5)
+plt.savefig(title + "_per_pkts.png")
 plt.clf()
+
+
+
+
+### second graph
+
+
+x_points = [0, 1, 2, 3] # [s123, s45, s6, s0]
+
+
+tot_tor = len(res_Tor)  # no. of total hits in s123
+tot_agg = len(res_agg)  # no. of total hits in s45
+tot_core = len(res_core)  # no. of total hits in s6
+tot_controller = len(res_controler)  # no. of total hits in s0
+
+# tot pckts sent
+
+
+print((tot_tor+tot_agg+tot_core+tot_controller)/tot_pckt, " %", " of pakcets sent.")
+
+y_points = [tot_tor/tot_pckt, tot_agg/tot_pckt, tot_core/tot_pckt, tot_controller/tot_pckt]
+#print(y_points)
+#print(tot_pckt)
+#print(sum(y_points))
+
+
+labels = ["TOR Switches", "Aggregation Switch", "Core Switches", "Controller"]
+
+
+x = np.arange(len(labels))  # the label locations
+
+#width = 0.35  # the width of the bars
+
+fig, ax = plt.subplots()
+rects1 = ax.bar(x, y_points, label='Men')
+
+# Add some text for labels, title and custom x-axis tick labels, etc.
+ax.set_ylabel('%' + " of Total packets sent")
+ax.set_title('Average Number of hops')
+ax.set_xticks(x)
+#ax.legend()
+
+
+plt.show()
 
 
 

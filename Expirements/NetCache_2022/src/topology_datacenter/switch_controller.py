@@ -33,25 +33,34 @@ from scapy.layers.inet import _IPOption_HDR
 THRESHOLD_HIT_AGG = 2
 THRESHOLD_HIT_CONTROLLER = 2
 CACHE_SIZE = 10
-TIME_OUT = 3
 policy_csv_path = "../tests_dependencies/policy.csv"
+path_to_expiriment = "../../results/"
 
-# Expiriment 1:
-THRESHOLD_HIT_CONTROLLER = 40   # should be 22 pps = 
-THRESHOLD_HIT_AGG = 20          # should be 11 pps = 
+TOT_PKTS = 10000
+TIME_OUT = 8                    # should be 2
+TIME_OUT_AGG = 4                # should be 2 or < 5
+
+# Expiriment 1: OPT
+THRESHOLD_HIT_CONTROLLER = 20   # should be 22 pps = 
+THRESHOLD_HIT_AGG = 10          # should be 11 pps = 
 CACHE_SIZE_TOR = 15             # should be 10
 CACHE_SIZE_AGG = 15             # should be 10
-TIME_OUT = 2                    # should be 2
-path_to_expiriment = "../../results/"
 
 """
-# Expiriment 2:
-THRESHOLD_HIT_AGG = 1           # should be 0
-THRESHOLD_HIT_CONTROLLER = 1    # should be 0
+
+# Expiriment 2: BASE
+THRESHOLD_HIT_AGG = 5           # should be 0
+THRESHOLD_HIT_CONTROLLER = 5    # should be 0
 CACHE_SIZE_TOR = 20             # should be 20
+CACHE_SIZE_AGG = 10             # should be 0
+
+# Expiriment 2: BASE
+THRESHOLD_HIT_AGG = 500           # should be infty
+THRESHOLD_HIT_CONTROLLER = 5000    # should be infty
+CACHE_SIZE_TOR = 1             # should be 0
 CACHE_SIZE_AGG = 1              # should be 0
-TIME_OUT = 2                    # should be 2
-path_to_expiriment = "../../results/"
+TIME_OUT = 1                    # should be 2
+TIME_OUT_AGG = 1               # should be 2 or < 5
 """
 
 policy_rules = {}                   # { policy_id: ['IP ADDR', MASK] } 
@@ -280,7 +289,7 @@ def write_hits_to_file(data , file):
 # what is done when receiving a packet
 def handle_pkt_controller(pkt):
 
-    global controller_miss_record, s6
+    global controller_miss_record, s6, start_time
 
     # parse packet 
     lookup_ip_request   = pkt[IP].dst # the request for an unknown destination
@@ -307,7 +316,10 @@ def handle_pkt_controller(pkt):
 
         #s6.read_tables()
 
-
+        #  to file:
+        sw_pps_file = open(path_to_expiriment + 's0_hit_count.txt', "a")
+        sw_pps_file.writelines([str(['s0', s6.cache.get(rule_id, None), time.time() - start_time, time.time(), 'hit']), '\n'])
+        sw_pps_file.close()
 
 """ LISTENING TO SWITCHES FUNCTIONS (THREADS) """
 
@@ -339,6 +351,7 @@ def thread_TOR_switch(switch, iface):
         # parse packet 
         lookup_ip_request   = pkt[IP].dst # the request for an unknown destination
         source_ip_address   = pkt[IP].src # the request source ipv4 address
+        
         sys.stdout.flush()
 
         # check if the address metch our rules - ip source
@@ -378,13 +391,6 @@ def thread_TOR_switch(switch, iface):
     while True:
         sniff(count = 1, iface = iface, prn = lambda pkt: handle_pkt(pkt))
         sys.stdout.flush()
-
-        # packet counter
-        global packet_counter
-        if packet_counter > 6000:
-            sw_hits_file.close()
-            exit(1)
-
 
 def thread_low_aggrigation_switches(switch, iface):
 
@@ -442,7 +448,7 @@ def thread_low_aggrigation_switches(switch, iface):
         switch.only_update_lru(rule_id)
 
         # if we crossed the miss threshold for this rule
-        if hit_counts[sw.name_str][rule_id][0] >= THRESHOLD_HIT_AGG and interval_time < TIME_OUT:
+        if hit_counts[sw.name_str][rule_id][0] >= THRESHOLD_HIT_AGG and interval_time < TIME_OUT_AGG:
 
             # insert rule to switch s6 cache
             sw.check_and_insert_rule_to_cache(rule_id=rule_id, wanted_sw_exit_port=2, cache_sz = CACHE_SIZE_TOR) # 2 listener (HIT)
@@ -454,7 +460,7 @@ def thread_low_aggrigation_switches(switch, iface):
             hit_counts[sw.name_str].pop(rule_id, None)
 
         # reset the all varibles and start counting again
-        elif interval_time >= TIME_OUT:
+        elif interval_time >= TIME_OUT_AGG:
             hit_counts[sw.name_str][rule_id][0]  = 1
             hit_counts[sw.name_str][rule_id][1]  = start_time = time.time()
 
@@ -472,11 +478,6 @@ def thread_low_aggrigation_switches(switch, iface):
     while True:
         sniff(count = 1, iface = iface, prn = lambda pkt: handle_pkt(pkt))
         sys.stdout.flush()
-        # packet counter
-        global packet_counter
-        if packet_counter > 6000:
-            sw_hits_file.close()
-            exit(1)
 
 def thread_high_aggrigation_switches(switch, iface):
 
@@ -555,11 +556,6 @@ def thread_high_aggrigation_switches(switch, iface):
     while True:
         sniff(count = 1, iface = iface, prn = lambda pkt: handle_pkt(pkt))
         sys.stdout.flush()
-        # packet counter
-        global packet_counter
-        if packet_counter > 6000:
-            sw_hits_file.close()
-            exit(1)
 
 ######################################################################################################################################## MAIN
 
@@ -595,98 +591,105 @@ if __name__ == '__main__':
 
     ################################################################################################################ Connect Switches to controller - p4runtime
 
-    ## Retriving information about the envirunment:
-    bmv2_file_path, p4info_helper = p4runtime_init()
-    print("Uploaded p4-runtime system parameters.")
+    if "connect to switches":
 
-    ## connect to switches s1-s6
-    s1 = CacheSwitch(name= 's1', localhost_port= 50052, device_id=1, helper_localhost_port=50058, helper_device_id=7)
-    s2 = CacheSwitch(name= 's2', localhost_port= 50053, device_id=2, helper_localhost_port=50059, helper_device_id=8)
-    s3 = CacheSwitch(name= 's3', localhost_port= 50054, device_id=3, helper_localhost_port=50060, helper_device_id=9)
-    s4 = CacheSwitch(name= 's4', localhost_port= 50055, device_id=4, helper_localhost_port=50061, helper_device_id=10)
-    s5 = CacheSwitch(name= 's5', localhost_port= 50056, device_id=5, helper_localhost_port=50062, helper_device_id=11)
-    s6 = CacheSwitch(name= 's6', localhost_port= 50057, device_id=6, helper_localhost_port=50063, helper_device_id=12)
+        ## Retriving information about the envirunment:
+        bmv2_file_path, p4info_helper = p4runtime_init()
+        print("Uploaded p4-runtime system parameters.")
 
-    print("Connected to all switches in the topology.")
-    print("********************************************")
+        ## connect to switches s1-s6
+        s1 = CacheSwitch(name= 's1', localhost_port= 50052, device_id=1, helper_localhost_port=50058, helper_device_id=7)
+        s2 = CacheSwitch(name= 's2', localhost_port= 50053, device_id=2, helper_localhost_port=50059, helper_device_id=8)
+        s3 = CacheSwitch(name= 's3', localhost_port= 50054, device_id=3, helper_localhost_port=50060, helper_device_id=9)
+        s4 = CacheSwitch(name= 's4', localhost_port= 50055, device_id=4, helper_localhost_port=50061, helper_device_id=10)
+        s5 = CacheSwitch(name= 's5', localhost_port= 50056, device_id=5, helper_localhost_port=50062, helper_device_id=11)
+        s6 = CacheSwitch(name= 's6', localhost_port= 50057, device_id=6, helper_localhost_port=50063, helper_device_id=12)
+
+        print("Connected to all switches in the topology.")
+        print("********************************************")
 
     ################################################################################################################ Insert basic forwarding rules
 
-    ## TOR switches
-    # s1 to s4 and s5
-    s1.insert_rule(dst_ip_addr="192.0.0.0",   mask=12, sw_exit_port=3)
-    s1.insert_rule(dst_ip_addr="192.240.0.0", mask=12, sw_exit_port=4)
-    # s2 to s4 and s5
-    s2.insert_rule(dst_ip_addr="192.0.0.0",   mask=12, sw_exit_port=3)
-    s2.insert_rule(dst_ip_addr="192.240.0.0", mask=12, sw_exit_port=4)
-    # s3 to s4 and s5
-    s3.insert_rule(dst_ip_addr="192.0.0.0",   mask=12, sw_exit_port=3)
-    s3.insert_rule(dst_ip_addr="192.240.0.0", mask=12, sw_exit_port=4)
+    if "insert rules":
 
-    ## Aggregation switches
-    # s4 to s6
-    s4.insert_rule(dst_ip_addr="192.0.0.0",   mask=8, sw_exit_port=5)
-    # s5 to s6
-    s5.insert_rule(dst_ip_addr="192.0.0.0",   mask=8, sw_exit_port=5)
-    # s6 to s0-controller
-    s6.insert_rule(dst_ip_addr="192.0.0.0",   mask=8, sw_exit_port=1)
+        ## TOR switches
+        # s1 to s4 and s5
+        s1.insert_rule(dst_ip_addr="192.0.0.0",   mask=12, sw_exit_port=3)
+        s1.insert_rule(dst_ip_addr="192.240.0.0", mask=12, sw_exit_port=4)
+        # s2 to s4 and s5
+        s2.insert_rule(dst_ip_addr="192.0.0.0",   mask=12, sw_exit_port=3)
+        s2.insert_rule(dst_ip_addr="192.240.0.0", mask=12, sw_exit_port=4)
+        # s3 to s4 and s5
+        s3.insert_rule(dst_ip_addr="192.0.0.0",   mask=12, sw_exit_port=3)
+        s3.insert_rule(dst_ip_addr="192.240.0.0", mask=12, sw_exit_port=4)
 
-    print("Inserted basic forwarding rules to switches.")
-    print("********************************************")
+        ## Aggregation switches
+        # s4 to s6
+        s4.insert_rule(dst_ip_addr="192.0.0.0",   mask=8, sw_exit_port=5)
+        # s5 to s6
+        s5.insert_rule(dst_ip_addr="192.0.0.0",   mask=8, sw_exit_port=5)
+        # s6 to s0-controller
+        s6.insert_rule(dst_ip_addr="192.0.0.0",   mask=8, sw_exit_port=1)
+
+        print("Inserted basic forwarding rules to switches.")
+        print("********************************************")
 
     ################################################################################################################ Open threads - listen to hit counts and act on it
 
-    # opening new 6 threads
-    idNum1 = threading.Thread(target=thread_TOR_switch, args=(s1, 's1-eth2'))
-    idNum2 = threading.Thread(target=thread_TOR_switch, args=(s2, 's2-eth2'))
-    idNum3 = threading.Thread(target=thread_TOR_switch, args=(s3, 's3-eth2'))
-    idNum4 = threading.Thread(target=thread_low_aggrigation_switches, args=(s4, 's4-eth4'))
-    idNum5 = threading.Thread(target=thread_low_aggrigation_switches, args=(s5, 's5-eth4'))
-    idNum6 = threading.Thread(target=thread_high_aggrigation_switches, args=(s6, 's6-eth4'))
+    if "open threads":
 
-    # starting threads
-    for idNum in [idNum1, idNum2, idNum3, idNum4, idNum5, idNum6]:
-        idNum.start()
-    sleep(2)
+        # opening new 6 threads
+        idNum1 = threading.Thread(target=thread_TOR_switch, args=(s1, 's1-eth2'))
+        idNum2 = threading.Thread(target=thread_TOR_switch, args=(s2, 's2-eth2'))
+        idNum3 = threading.Thread(target=thread_TOR_switch, args=(s3, 's3-eth2'))
+        idNum4 = threading.Thread(target=thread_low_aggrigation_switches, args=(s4, 's4-eth4'))
+        idNum5 = threading.Thread(target=thread_low_aggrigation_switches, args=(s5, 's5-eth4'))
+        idNum6 = threading.Thread(target=thread_high_aggrigation_switches, args=(s6, 's6-eth4'))
 
-    print("Opened threads for listening to hit-count.")
-    print("********************************************")
+        # starting threads
+        for idNum in [idNum1, idNum2, idNum3, idNum4, idNum5, idNum6]:
+            idNum.start()
+        sleep(2)
+
+        print("Opened threads for listening to hit-count.")
+        print("********************************************")
     
     ################################################################################################################ Listen to s0-p1 incomint messages to controller
 
-    iface = 's0-eth1'
-    time_tmp = time.time()
-    packet_counter = 0
-     
-    print("Starting listening to port-1 on controller - incoming requests...")
+    if "listern":
 
-    flagWhile = 1
-    while flagWhile:  
+        iface = 's0-eth1'
+        time_tmp = time.time()
+        packet_counter = 0
+        sw0_file = open(path_to_expiriment + 's0_hit_count.txt', 'w')
+        start_time = time.time()
+         
+        print("Starting listening to port-1 on controller - incoming requests...")
 
-        # sniffing
-        sniff(count = 1, iface = iface, prn = lambda x: handle_pkt_controller(x))
+        flagWhile = 1
+        while flagWhile:  
 
-        # packet counter
-        packet_counter += 1
-        sys.stdout.flush()
+            # sniffing
+            sniff(count = 1, iface = iface, prn = lambda x: handle_pkt_controller(x))
 
-        if packet_counter > 6000:
-            flagWhile = False
+            # packet counter
+            packet_counter += 1
+            sys.stdout.flush()
 
 
-    """
+        """
 
-    while True:
-        if time.time() - time_tmp > 20:
-            time_tmp = time.time()
-            # print values every 10 seconds
-            print("********************************************")
-            print("Packet counter received in the controller = %d:" % packet_counter)
-            for s in [s1, s2, s3, s4, s5, s6]:
-                print("In %s: cache size now is: -%d-, and total -%d- hit counts in switch cache." % (s.name_str, len(s.cache), sum(s.threshold_hit.values())))            
-            print("********************************************")
-    
-    """
+        while True:
+            if time.time() - time_tmp > 20:
+                time_tmp = time.time()
+                # print values every 10 seconds
+                print("********************************************")
+                print("Packet counter received in the controller = %d:" % packet_counter)
+                for s in [s1, s2, s3, s4, s5, s6]:
+                    print("In %s: cache size now is: -%d-, and total -%d- hit counts in switch cache." % (s.name_str, len(s.cache), sum(s.threshold_hit.values())))            
+                print("********************************************")
+        
+        """
 
     ################################################################################################################ Ending main
 
