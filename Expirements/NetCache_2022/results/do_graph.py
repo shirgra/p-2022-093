@@ -136,8 +136,8 @@ tot = (tot_tor+tot_agg+tot_core+tot_controller)
 
 
 res = (tot_tor+tot_agg+tot_core)/(tot)
-print(res*100, " %", " of pakcets sent.")
-#tot = (tot_tor+tot_agg+tot_core+tot_controller)/(tot_pckt)
+#print(res*100, " %", " of pakcets sent.")
+avrg = (tot_tor*0+tot_agg*1+tot_core*2+tot_controller*3)/(tot_pckt)
 
 y_points = [tot_tor/tot, tot_agg/tot, tot_core/tot, tot_controller/tot]
 #print(y_points)
@@ -156,8 +156,8 @@ fig, ax = plt.subplots()
 rects1 = ax.bar(x, y_points, label='No.')
 
 # Add some text for labels, title and custom x-axis tick labels, etc.
-plt.ylabel('%' + " out of Total packets sent")
-ax.set_title('Number of hops per packet sent. Avg.='+ str(int(res*100)) + "%" )#+ ". Tot.=" + str(int(tot*100)) + "%" )
+plt.ylabel('%' + " out of Total packets")
+ax.set_title('Number of hops per packet')#+ ". Tot.=" + str(int(tot*100)) + "%" )
 ax.set_xticks(x)
 plt.xlabel("Number of hops until a hit in cache occures")
 # plt.show()
@@ -166,7 +166,8 @@ plt.savefig(title + "_no_of_hops.png")
 #ax.legend()
 #plt.show()
 
-
-
-
+ 
+print("Total precent of packets hit-in-cache:        "+ str(int(res*100)) + "%" )
+print("Average number of hops:                       "+ str(avrg))
+print("% packets captured from total packets sent    "+ str(tot/tot_pckt))
 print("Done.")

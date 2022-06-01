@@ -46,6 +46,7 @@ THRESHOLD_HIT_AGG = 10          # should be 11 pps =
 CACHE_SIZE_TOR = 15             # should be 10
 CACHE_SIZE_AGG = 15             # should be 10
 
+
 # Expiriment 2: BASE
 THRESHOLD_HIT_AGG = 3           # should be 3
 THRESHOLD_HIT_CONTROLLER = 7    # should be 7
@@ -55,10 +56,15 @@ CACHE_SIZE_AGG = 10             # should be 10
 # Expiriment 3: BASE
 THRESHOLD_HIT_AGG = 5           # should be 5
 THRESHOLD_HIT_CONTROLLER = 5    # should be 5
-CACHE_SIZE_TOR = 20             # should be 20
-CACHE_SIZE_AGG = 10             # should be 10
 
+# Expiriment 4: SHIR
+THRESHOLD_HIT_AGG = 3           # should be 5
+THRESHOLD_HIT_CONTROLLER = 5    # should be 8
 """
+
+THRESHOLD_HIT_AGG = 1            
+THRESHOLD_HIT_CONTROLLER = 1           
+
 # Expiriment NoCache
 THRESHOLD_HIT_AGG = 5000           
 THRESHOLD_HIT_CONTROLLER = 5000    
@@ -323,7 +329,7 @@ def handle_pkt_controller(pkt):
 
         #  to file:
         sw_pps_file = open(path_to_expiriment + 's0_hit_count.txt', "a")
-        sw_pps_file.writelines([str(['s0', s6.cache.get(rule_id, None), time.time() - start_time, time.time(), 'hit']), '\n'])
+        sw_pps_file.writelines([str(['s0', lookup_ip_request, time.time() - start_time, time.time(), 'hit']), '\n'])
         sw_pps_file.close()
 
 """ LISTENING TO SWITCHES FUNCTIONS (THREADS) """
@@ -449,8 +455,9 @@ def thread_low_aggrigation_switches(switch, iface):
 
         #stop clock to check if timeout
         interval_time = time.time() - hit_counts[sw.name_str][rule_id][1]
-        
-        switch.only_update_lru(rule_id)
+
+        if rule_id in switch.cache.keys():
+            switch.only_update_lru(rule_id)
 
         # if we crossed the miss threshold for this rule
         if hit_counts[sw.name_str][rule_id][0] >= THRESHOLD_HIT_AGG and interval_time < TIME_OUT_AGG:
@@ -529,7 +536,9 @@ def thread_high_aggrigation_switches(switch, iface):
         #stop clock to check if timeout
         interval_time = time.time() - hit_counts[sw.name_str][rule_id][1]
         
-        switch.only_update_lru(rule_id)
+
+        if rule_id in switch.cache.keys():
+            switch.only_update_lru(rule_id)
 
 
         # if we crossed the miss threshold for this rule
