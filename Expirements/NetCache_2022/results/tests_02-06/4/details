@@ -1,0 +1,15 @@
+TIME_OUT = 8                   # should be 2
+TIME_OUT_AGG = 4           # should be 2 or < 5
+
+CACHE_SIZE_TOR = 20             # should be 20
+CACHE_SIZE_AGG = 10             # should be 10
+
+# Expiriment 4: SHIR
+THRESHOLD_HIT_AGG = 3           # should be 5
+THRESHOLD_HIT_CONTROLLER = 5    # should be 8
+
+
+Average number of hops (tot_sent):            0.43
+Average number of hops (tot):                 0.67
+% packets captured from total packets sent    0.64%
+

@@ -47,6 +47,7 @@ CACHE_SIZE_TOR = 15             # should be 10
 CACHE_SIZE_AGG = 15             # should be 10
 
 
+"""
 # Expiriment 2: BASE
 THRESHOLD_HIT_AGG = 3           # should be 3
 THRESHOLD_HIT_CONTROLLER = 7    # should be 7
@@ -60,7 +61,6 @@ THRESHOLD_HIT_CONTROLLER = 5    # should be 5
 # Expiriment 4: SHIR
 THRESHOLD_HIT_AGG = 3           # should be 5
 THRESHOLD_HIT_CONTROLLER = 5    # should be 8
-"""
 
 THRESHOLD_HIT_AGG = 1            
 THRESHOLD_HIT_CONTROLLER = 1           

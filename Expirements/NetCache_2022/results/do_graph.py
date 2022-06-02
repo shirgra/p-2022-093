@@ -4,6 +4,7 @@
 import matplotlib.pyplot as plt
 import numpy as np
 import sys
+import itertools
 
 # initial uploading for traffic flows
 if len(sys.argv)<2:
@@ -11,14 +12,22 @@ if len(sys.argv)<2:
     exit(1)
 graph_name = folder = sys.argv[1]
 
-res_Tor = []
-res_agg = []
-res_core = []
-res_controler = []
+# [[l], [m], [s]]
+res_Tor = {"l": [], "m": [], "s": []}
+res_agg = {"l": [], "m": [], "s": []}
+res_core = {"l": [], "m": [], "s": []}
+res_controler = {"l": [], "m": [], "s": []}
+# new type graph
+total_min = 9 ** 10
+tot_pckt = 0
+tot = 0
 
 # defines
 x_points = np.arange(0, 200, 1)
+my_points = [0 for i in list(range(len(x_points)))]
 
+""" Read files """
+# switches
 for s in range(0, 7):
     res = []
     name = r'' + folder + '/s' + str(s) + '_hit_count.txt'
@@ -26,30 +35,25 @@ for s in range(0, 7):
     alllines = switch_hit_file.readlines()
     for line in alllines:
         tmp = [line[1:-2].split(", ")[i][0:-1] for i in range(4)]
-        res.append(float(tmp[2]))
-
-    if  s == 1 or s == 2 or s == 3:
-        res_Tor.extend(res)
-    elif s == 0:
-        res_controler.extend(res)    
-    elif s == 4 or s == 5:
-        res_agg.extend(res)
-    elif s == 6:
-        res_core.extend(res)
-
-    y_points = [0 for i in list(range(len(x_points)))]
-
-    # fill points for switch
-    for hit in res:
-        for beg in range(len(x_points)):
-            if x_points[beg] <= hit <= x_points[beg] + 1:
-                y_points[beg] += 1
-
-# new type graph
-total_min = 9 ** 10
-tot_pckt = 0 
-res = []
-# find start point
+        res = float(tmp[2])
+        if tmp[1].split(".")[2] == "10":
+            fourth = tmp[1].split(".")[3]
+            if len(fourth) == 3:
+                addr = "m"
+            else:
+                addr = "l"
+        else:
+            addr = "s"
+        if s == 1 or s == 2 or s == 3:
+            res_Tor[addr].append(res)
+        elif s == 0:
+            res_controler[addr].append(res)
+        elif s == 4 or s == 5:
+            res_agg[addr].append(res)
+        elif s == 6:
+            res_core[addr].append(res)
+        tot +=1
+# find start point - packets
 for h in range(1, 4):
     try:
         name = r'' + folder + '/h' + str(h) + '_pps.txt'
@@ -60,7 +64,8 @@ for h in range(1, 4):
             total_min = min_time
     except:
         pass
-
+# packets rate
+res = []
 for h in range(1, 4):
     try:
         name = r'' + folder + '/h' + str(h) + '_pps.txt'
@@ -72,13 +77,11 @@ for h in range(1, 4):
             # tmp = float(line.split()[1])
             tmp += 70
             res.append([t - total_min, 70])
-            tot_pckt+=70
+            tot_pckt += 70
     except:
         pass
 
-# get average p/s
-my_points = [0 for i in list(range(len(x_points)))]
-
+""" fill points"""
 # get the average for a second
 for pps in res:
     for beg in range(len(x_points)):
@@ -87,87 +90,69 @@ for pps in res:
                 my_points[beg] += pps[1]
         except:
             pass
-
-import itertools
-
 my_points = list(itertools.accumulate(my_points))
 
-fig, ax = plt.subplots()
-for res, name, color, linestyle in zip([res_core, res_agg, res_Tor], ["Core Switch", "Aggregation Switches", "TOR Switches"], ["Black", "Cyan", "Green"], ['--', '-', '-.']):
-    # build slices
-    y_points = [0 for i in list(range(len(x_points)))]
-    # fill points for switch
-    for hit in res:
-        for beg in range(len(x_points)):
-            if x_points[beg] <= hit <= x_points[beg] + 1:
-                try:
-                    y_points[beg] += 1
-                except:
-                    y_points[beg] = 1
-    # plot
-    ax.plot(my_points, y_points, color=color, linestyle=linestyle, linewidth=2.0, label=name)
-title = graph_name
-plt.title("Hit-in-Cache hit count per Second. Exp.#" + title)
-ax.legend()
-ax.grid(True)
-plt.xlabel("Average Packets so far")
-plt.ylabel("Hit-in-cache count per Second")
-# plt.show()
-#plt.savefig(title + "_func_of_pkts.png")
-fig.set_size_inches(10, 5)
-plt.savefig(title + "_hits.png")
-plt.clf()
+""" GRAPHS """
+if "first graphs":
+    fig, ax = plt.subplots()
+    for res, name, color, linestyle in zip([res_core, res_agg, res_Tor],
+                                           ["Core Switch", "Aggregation Switches", "TOR Switches"],
+                                           ["Black", "Blue", "Green"],
+                                           ['--', '-', '-.']):
+        res = list(res.values())[0] + list(res.values())[1] + list(res.values())[2]
+        # build slices
+        y_points = [0 for i in list(range(len(x_points)))]
+        # fill points for switch
+        for hit in res:
+            for beg in range(len(x_points)):
+                if x_points[beg] <= hit <= x_points[beg] + 1:
+                    try:
+                        y_points[beg] += 1
+                    except:
+                        y_points[beg] = 1
+        # plot
+        ax.plot(my_points, y_points, color=color, linestyle=linestyle, linewidth=2.0, label=name)
+    title = graph_name
+    plt.title("Hit-in-Cache hit count per Second. Exp.#" + title)
+    ax.legend()
+    ax.grid(True)
+    plt.xlabel("Average Packets so far")
+    plt.ylabel("Hit-in-cache count per Second")
+    fig.set_size_inches(15, 7)
+    # plt.show()
+    plt.savefig(title + "_hits.png")
+    plt.clf()
+if "second graph":
+    labels = ['0', '1', '2', '3']
+    sm = [len(res_Tor["s"])/tot, len(res_agg["s"])/tot, len(res_core["s"])/tot, len(res_controler["s"])/tot]
+    md = [len(res_Tor["m"])/tot, len(res_agg["m"])/tot, len(res_core["m"])/tot, len(res_controler["m"])/tot]
+    lr = [len(res_Tor["l"])/tot, len(res_agg["l"])/tot, len(res_core["l"])/tot, len(res_controler["l"])/tot]
+    # width = 0.35  # the width of the bars: can also be len(x) sequence
+
+    fig, ax = plt.subplots()
+
+    ax.bar(labels, sm, label='Small flows')
+    ax.bar(labels, md, bottom=sm, label='Medium flows')
+    ax.bar(labels, lr, bottom=[i+j for i,j, in zip(sm,md)], label='Large flows')
+    ax.legend()
+    plt.xlabel("Number of hops until a hit in cache occurs")
+    plt.ylabel('%' + " out of Total packets")
+    ax.set_title('Number of hops per packet')  # + ". Tot.=" + str(int(tot*100)) + "%" )
+    # plt.show()
+    plt.savefig(title + "_hops.png")
 
 
+tot_tor = sum(len(i) for i in res_Tor.values())  # no. of total hits in s123
+tot_agg = sum(len(i) for i in res_agg.values())   # no. of total hits in s45
+tot_core = sum(len(i) for i in res_core.values())   # no. of total hits in s6
+tot_controller = sum(len(i) for i in res_controler.values())  # no. of total hits in s0
+tot = (tot_tor + tot_agg + tot_core + tot_controller)
+res = (tot_tor + tot_agg + tot_core) / (tot)
+avrg = (tot_tor * 0 + tot_agg * 1 + tot_core * 2 + tot_controller * 3) / (tot_pckt)
 
 
-### second graph
-
-
-x_points = [0, 1, 2, 3] # [s123, s45, s6, s0]
-
-
-tot_tor = len(res_Tor)  # no. of total hits in s123
-tot_agg = len(res_agg)  # no. of total hits in s45
-tot_core = len(res_core)  # no. of total hits in s6
-tot_controller = len(res_controler)  # no. of total hits in s0
-tot = (tot_tor+tot_agg+tot_core+tot_controller)
-# tot pckts sent
-
-
-res = (tot_tor+tot_agg+tot_core)/(tot)
-#print(res*100, " %", " of pakcets sent.")
-avrg = (tot_tor*0+tot_agg*1+tot_core*2+tot_controller*3)/(tot_pckt)
-
-y_points = [tot_tor/tot, tot_agg/tot, tot_core/tot, tot_controller/tot]
-#print(y_points)
-#print(tot_pckt)
-#print(sum(y_points))
-
-
-labels = ["TOR Switches", "Aggregation Switch", "Core Switches", "Controller"]
-
-
-x = np.arange(len(labels))  # the label locations
-
-#width = 0.35  # the width of the bars
-
-fig, ax = plt.subplots()
-rects1 = ax.bar(x, y_points, label='No.')
-
-# Add some text for labels, title and custom x-axis tick labels, etc.
-plt.ylabel('%' + " out of Total packets")
-ax.set_title('Number of hops per packet')#+ ". Tot.=" + str(int(tot*100)) + "%" )
-ax.set_xticks(x)
-plt.xlabel("Number of hops until a hit in cache occures")
-# plt.show()
-#plt.savefig(title + "_func_of_pkts.png")
-plt.savefig(title + "_no_of_hops.png")
-#ax.legend()
-#plt.show()
-
- 
-print("Total precent of packets hit-in-cache:        "+ str(int(res*100)) + "%" )
-print("Average number of hops:                       "+ str(avrg))
-print("% packets captured from total packets sent    "+ str(tot/tot_pckt))
+# print("Total precent of packets hit-in-cache:        " + str(int(res * 100)) + "%")
+print("Average number of hops (tot_sent):            " + str(avrg)[0:4])
+print("Average number of hops (tot):                 " + str((avrg*tot_pckt)/tot)[0:4])
+print("% packets captured from total packets sent    " + str(tot / tot_pckt)[0:4] + "%")
 print("Done.")

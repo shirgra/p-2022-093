@@ -1,0 +1,14 @@
+TIME_OUT = 8                   # should be 2
+TIME_OUT_AGG = 4           # should be 2 or < 5
+# Expiriment 2: BASE
+THRESHOLD_HIT_AGG = 3           # should be 3
+THRESHOLD_HIT_CONTROLLER = 7    # should be 7
+CACHE_SIZE_TOR = 20             # should be 20
+CACHE_SIZE_AGG = 10             # should be 10
+
+
+p4@p4:~/Desktop/p-2022-093/Expirements/NetCache_2022/results$ python3 do_graph_2.py 2
+Average number of hops (tot_sent):            0.54
+Average number of hops (tot):                 0.89
+% packets captured from total packets sent    0.60%
+Done.
