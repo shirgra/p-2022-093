@@ -74,6 +74,14 @@ TIME_OUT = 1
 TIME_OUT_AGG = 1               
 """
 
+# Expiriment 1.5: 
+THRESHOLD_HIT_CONTROLLER = 7   # should be 22 pps = 
+THRESHOLD_HIT_AGG = 3          # should be 11 pps = 
+CACHE_SIZE_TOR = 15             # should be 10
+CACHE_SIZE_AGG = 15             # should be 10
+
+
+
 policy_rules = {}                   # { policy_id: ['IP ADDR', MASK] } 
 controller_miss_record = {}
 
