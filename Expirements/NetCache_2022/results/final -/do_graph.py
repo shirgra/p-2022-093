@@ -1,0 +1,179 @@
+#!/usr/bin/env python3
+# python 3.5
+
+import matplotlib.pyplot as plt
+import numpy as np
+import sys
+import itertools
+import matplotlib.ticker as mtick
+
+# initial uploading for traffic flows
+# if len(sys.argv)<2:
+#     print('Need to pass a folder name')
+#     exit(1)
+for folder in ["4", "15", "1", "2"]: #sys.argv[1]
+# for folder in ["1", "2", "4"]: #sys.argv[1]
+    graph_name = folder
+    # [[l], [m], [s]]
+    res_Tor = {"l": [], "m": [], "s": []}
+    res_agg = {"l": [], "m": [], "s": []}
+    res_core = {"l": [], "m": [], "s": []}
+    res_controler = {"l": [], "m": [], "s": []}
+    # new type graph
+    total_min = 9 ** 10
+    tot_pckt = 0
+    tot = 0
+
+    # defines
+    x_points = np.arange(0, 200, 1)
+    my_points = [0 for i in list(range(len(x_points)))]
+
+    """ Read files """
+    # switches
+    for s in range(0, 7):
+        res = []
+        name = r'' + folder + '/s' + str(s) + '_hit_count.txt'
+        switch_hit_file = open(name, 'r')
+        alllines = switch_hit_file.readlines()
+        for line in alllines:
+            tmp = [line[1:-2].split(", ")[i][0:-1] for i in range(4)]
+            res = float(tmp[2])
+            if tmp[1].split(".")[2] == "10":
+                fourth = tmp[1].split(".")[3]
+                if len(fourth) == 3:
+                    addr = "m"
+                else:
+                    addr = "l"
+            else:
+                addr = "s"
+            if s == 1 or s == 2 or s == 3:
+                res_Tor[addr].append(res)
+            elif s == 0:
+                res_controler[addr].append(res)
+            elif s == 4 or s == 5:
+                res_agg[addr].append(res)
+            elif s == 6:
+                res_core[addr].append(res)
+            tot +=1
+    # find start point - packets
+    for h in range(1, 4):
+        try:
+            name = r'' + folder + '/h' + str(h) + '_pps.txt'
+            pps_file = open(name, 'r')
+            alllines = pps_file.readlines()
+            min_time = float(alllines[0].split()[0])
+            if min_time < total_min:
+                total_min = min_time
+        except:
+            pass
+    # packets rate
+    res = []
+    for h in range(1, 4):
+        try:
+            name = r'' + folder + '/h' + str(h) + '_pps.txt'
+            pps_file = open(name, 'r')
+            alllines = pps_file.readlines()
+            tmp = 0
+            for line in alllines:
+                t = float(line.split()[0])
+                # tmp = float(line.split()[1])
+                tmp += 70
+                res.append([t - total_min, 70])
+                tot_pckt += 70
+        except:
+            pass
+
+    """ fill points"""
+    # get the average for a second
+    for pps in res:
+        for beg in range(len(x_points)):
+            try:
+                if x_points[beg] <= pps[0] <= x_points[beg + 1]:
+                    my_points[beg] += pps[1]
+            except:
+                pass
+    my_points = list(itertools.accumulate(my_points))
+
+    """ GRAPHS """
+    if "first graphs":
+        fig, ax = plt.subplots()
+        for res, name, color, linestyle in zip([res_core, res_agg, res_Tor],
+                                               ["Core Switch", "Aggregation Switches", "ToR Switches"],
+                                               ["Black", "Blue", "Green"],
+                                               ['--', '-', '-.']):
+            res = list(res.values())[0] + list(res.values())[1] + list(res.values())[2]
+            # build slices
+            y_points = [0 for i in list(range(len(x_points)))]
+            # fill points for switch
+            for hit in res:
+                for beg in range(len(x_points)):
+                    if x_points[beg] <= hit <= x_points[beg] + 1:
+                        try:
+                            y_points[beg] += 1
+                        except:
+                            y_points[beg] = 1
+            # plot
+            ax.plot(my_points, y_points, color=color, linestyle=linestyle, linewidth=2.0, label=name)
+        title = graph_name
+        plt.title("Hit-in-Cache Count per Second")
+        ax.legend()
+        ax.grid(True)
+        plt.xlabel("Average Packets so far")
+        plt.ylabel("Hit-in-cache count per Second")
+        # fig.set_size_inches(24, 10)
+        # plt.show()
+        plt.savefig(title + "_hits.png")
+        plt.clf()
+    if "second graph":
+        labels = ['0', '1', '2', '3']
+        sm = [len(res_Tor["s"])/tot, len(res_agg["s"])/tot, len(res_core["s"])/tot, len(res_controler["s"])/tot]
+        md = [len(res_Tor["m"])/tot, len(res_agg["m"])/tot, len(res_core["m"])/tot, len(res_controler["m"])/tot]
+        lr = [len(res_Tor["l"])/tot, len(res_agg["l"])/tot, len(res_core["l"])/tot, len(res_controler["l"])/tot]
+        # width = 0.35  # the width of the bars: can also be len(x) sequence
+
+        fig, ax = plt.subplots()
+
+        ax.bar(labels, sm, label='Small flows', color="steelblue")
+        ax.bar(labels, md, bottom=sm, label='Medium flows', color="darkgreen")
+        ax.bar(labels, lr, bottom=[i+j for i,j, in zip(sm,md)], label='Large flows', color="peru")
+        ax.legend()
+        plt.xlabel("Number of hops until a hit in cache occurs")
+        plt.ylabel('%' + " out of Total packets")
+        ax.set_title('Number of Hops per Flow Type')  # + ". Tot.=" + str(int(tot*100)) + "%" )
+        plt.ylim([0, 0.7])
+        ax.set_yticklabels(['{:,.0%}'.format(x) for x in ax.get_yticks()])
+        # plt.show()
+        # fig.set_size_inches(10, 10)
+        plt.savefig(title + "_hops.png")
+        plt.clf()
+
+        fig, ax = plt.subplots()
+
+        ax.bar(labels, sm, label='Small flows', color="darkgreen")
+        ax.bar(labels, md, bottom=sm, label='Medium flows', color="darkgreen")
+        ax.bar(labels, lr, bottom=[i+j for i,j, in zip(sm,md)], label='Large flows', color="darkgreen")
+        plt.xlabel("Number of hops until a hit in cache occurs")
+        plt.ylabel('%' + " out of Total packets")
+        ax.set_title('Number of Hops per Flow Type')  # + ". Tot.=" + str(int(tot*100)) + "%" )
+        plt.ylim([0, 0.7])
+        ax.set_yticklabels(['{:,.0%}'.format(x) for x in ax.get_yticks()])
+        # fig.set_size_inches(15, 15)
+        # plt.show()
+        plt.savefig(title + "_hops_unite.png")
+
+
+
+    tot_tor = sum(len(i) for i in res_Tor.values())  # no. of total hits in s123
+    tot_agg = sum(len(i) for i in res_agg.values())   # no. of total hits in s45
+    tot_core = sum(len(i) for i in res_core.values())   # no. of total hits in s6
+    tot_controller = sum(len(i) for i in res_controler.values())  # no. of total hits in s0
+    tot = (tot_tor + tot_agg + tot_core + tot_controller)
+    res = (tot_tor + tot_agg + tot_core) / (tot)
+    avrg = (tot_tor * 0 + tot_agg * 1 + tot_core * 2 + tot_controller * 3) / (tot_pckt)
+
+
+    # print("Total precent of packets hit-in-cache:        " + str(int(res * 100)) + "%")
+    # print("Average number of hops (tot_sent):            " + str(avrg)[0:4])
+    print(folder + " Average number of hops (tot):                 " + str((avrg*tot_pckt)/tot)[0:4])
+    # print("% packets captured from total packets sent    " + str(tot / tot_pckt)[0:4] + "%")
+    # print("Done.")
